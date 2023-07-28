@@ -45,6 +45,8 @@ class specplot(FigureCanvas):
         self.spectraData = []
         self.spectraLines = []
         self.currentSpectrumIndex = None
+        
+        self.fileName = None
     
     ## Event handling
     
@@ -170,3 +172,13 @@ class specplot(FigureCanvas):
             if spec.ylim[1] > self.fullYlim[1]:
                 self.fullYlim[1] = spec.ylim[1]
         self.ax.figure.canvas.draw_idle()
+    
+    def saveSpectra(self):
+        if len(self.spectraData) > 1:
+            # multiple spectra file
+            pass
+        else:
+            content = self.spectraData[0].getAsJCAMPDX()
+            with open(self.fileName, "w") as f:
+                f.write(content)
+            

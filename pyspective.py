@@ -9,7 +9,7 @@ Created on Thu Mar  9 09:46:12 2023
 import sys, os
 
 from PyQt6 import QtCore, QtGui
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtCore import QDir
 from PyQt6.QtWidgets import (
     QApplication,
@@ -22,7 +22,8 @@ from PyQt6.QtWidgets import (
 
 
 import specplot
-import raman
+import spectrum
+import spectratypes
 import opendialog
 import metadatadialog
 
@@ -52,6 +53,7 @@ class ApplicationWindow(QMainWindow):
     def createMainWidgets(self):
         # create Toolbar and Statusbar
         self.toolBar = self.addToolBar('Main')
+        self.toolBar.setObjectName("MainToolBar")
         self.toolBarTabWidget = QTabWidget(self.toolBar)
         self.toolBarTabWidget.setFixedHeight(100)
         self.toolBar.addWidget(self.toolBarTabWidget)
@@ -69,6 +71,11 @@ class ApplicationWindow(QMainWindow):
         self.imageSaveAction.triggered.connect(self.saveImage)
         self.metadataAction = QAction(self.tr('Show and Edit Metadata'))
         self.metadataAction.triggered.connect(self.showMetadata)
+        self.saveAction = QAction(self.tr('&Save File as JCAMP-DX'))
+        self.saveAction.setIcon(QIcon.fromTheme("document-save", QIcon("icons/document-save.svg")))
+        self.saveAction.setShortcut(QKeySequence("Ctrl+S"))
+        self.saveAction.setEnabled(False)
+        self.saveAction.triggered.connect(self.saveFile)
         
     def createMenuBar(self):
         self.menuBar = self.menuBar()
@@ -78,6 +85,7 @@ class ApplicationWindow(QMainWindow):
         # create file menu
         self.fileMenu.addAction(self.openNew)
         self.fileMenu.addAction(self.imageSaveAction)
+        self.fileMenu.addAction(self.saveAction)
         self.fileMenu.addSeparator()
         self.fileMenu.addAction(self.closeAction)
         
@@ -94,9 +102,12 @@ class ApplicationWindow(QMainWindow):
         dgl = opendialog.openDialog(self)
         if dgl.exec():
             data = dgl.getData()
+            if not os.path.exists(data["File Name"]):
+                return
+            self.settings.setValue("lastOpenDir", os.path.dirname(data["File Name"]))
             if data["File Type"] == "Any Text Format":
                 if data["Free Text Settings"]["Spectrum Type"] == "Raman":
-                    newSpectrum = raman.ramanSpectrum()
+                    newSpectrum = spectratypes.ramanSpectrum()
                     if newSpectrum.openFreeText(fileName=data["File Name"], options=data["Free Text Settings"]):
                         c = specplot.specplot()
                         c.addSpectrum(newSpectrum)
@@ -105,7 +116,28 @@ class ApplicationWindow(QMainWindow):
                 else:
                     pass
             elif data["File Type"] == "JCAMP-DX":
-                pass
+                blocks = spectrum.getJCAMPblockFromFile(data["File Name"])
+                for b in blocks:
+                    if "INFRARED SPECTRUM" in b.upper():
+                        # it is an infrared spectrum!
+                        newSpectrum = spectratypes.infraredSpectrum()
+                        print("infrared")
+                        
+                    elif "RAMAN SPECTRUM" in b.upper():
+                        # it is a Raman Spectrum!
+                        print("raman")
+                        newSpectrum = spectratypes.ramanSpectrum()
+                    elif "ULTRAVIOLET SPECTRUM" in b.upper():
+                        # it is an UV-VIS spectrum!
+                        newSpectrum = spectratypes.ultravioletSpectrum()
+                        print("ultraviolet")
+                    if newSpectrum.openJCAMPDXfromString(b):
+                        c = specplot.specplot()
+                        c.addSpectrum(newSpectrum)
+                        self._mainWidget.addTab(c, os.path.basename(data["File Name"]))
+                        self.tabWidgets.append(c)
+                        self.saveAction.setEnabled(True)
+                        
     
     def saveImage(self):
         fileName, _ = QFileDialog.getSaveFileName(self, "Save Current View as Image", QDir.homePath(), "Portable Network Graphic (*.png)")
@@ -122,6 +154,15 @@ class ApplicationWindow(QMainWindow):
             pass
         self.settings.setValue("MetadataDialogGeometry", dgl.saveGeometry())
 
+    def saveFile(self):
+        if not self.tabWidgets[-1].fileName:
+            fileName, _ = QFileDialog.getSaveFileName(self, "Save File", QDir.homePath(), "JCAMP-DX File (*.dx)")
+        if fileName:
+            if not fileName.endswith(".dx"):
+                fileName += ".dx"
+            self.tabWidgets[-1].fileName = fileName
+            self.tabWidgets[-1].saveSpectra()
+        
 if __name__ == "__main__":
     qapp = QApplication(sys.argv)
 

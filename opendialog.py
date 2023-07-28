@@ -113,7 +113,7 @@ class openDialog(QDialog):
     
     def getFileName(self):
         if self.settings.value("lastOpenDir"):
-            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", self.settings.value("lastOpenDir"), self.tr("JCAMP-DX File (*.dx);; Any Type (*.*)"))
+            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", self.settings.value("lastOpenDir"), self.tr("JCAMP-DX File (*.dx *jdx);; Any Type (*.*)"))
         else:
             fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", QDir.homePath(), self.tr("JCAMP-DX File (*.dx);; Any Type (*.*)"))
         if fileName:
@@ -121,7 +121,7 @@ class openDialog(QDialog):
             if filterType == "Any Type (*.*)":
                 self.fileTypeCombo.setCurrentText("Any Text Format")
                 self.freeTextFileSettings.setVisible(True)
-            elif filterType == "JCAMP-DX File (*.dx)":
+            elif filterType == "JCAMP-DX File (*.dx *jdx)":
                 self.fileTypeCombo.setCurrentText("JCAMP-DX")
                 self.freeTextFileSettings.setVisible(False)
     
