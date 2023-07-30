@@ -26,6 +26,7 @@ import spectrum
 import spectratypes
 import opendialog
 import metadatadialog
+import exportdialog
 
 class ApplicationWindow(QMainWindow):
     def __init__(self):
@@ -66,7 +67,7 @@ class ApplicationWindow(QMainWindow):
         self.openNew = QAction(self.tr('Open Spectrum'))
         self.openNew.setIcon(QIcon.fromTheme("document-open", QIcon("icons/document-open.svg")))
         self.openNew.triggered.connect(lambda: self.openFile())
-        self.imageSaveAction = QAction(self.tr('Save Image of Current View'))
+        self.imageSaveAction = QAction(self.tr('SExport Current View to Image File'))
         self.imageSaveAction.setIcon(QIcon.fromTheme("image-png", QIcon("icons/image-png.svg")))
         self.imageSaveAction.triggered.connect(self.saveImage)
         self.metadataAction = QAction(self.tr('Show and Edit Metadata'))
@@ -140,10 +141,13 @@ class ApplicationWindow(QMainWindow):
                         
     
     def saveImage(self):
-        fileName, _ = QFileDialog.getSaveFileName(self, "Save Current View as Image", QDir.homePath(), "Portable Network Graphic (*.png)")
-        if fileName:
-            w = self._mainWidget.currentWidget()
-            w.figure.savefig(fileName, dpi=300)
+        dgl = exportdialog.exportDialog()
+        if dgl.exec():
+            data = dgl.getData()
+            fileName, fileTypeFilter = QFileDialog.getSaveFileName(self, "Export Current View", QDir.homePath(), self.tr("Portable Network Graphic (*.png);;Portable Document Format (*.pdf);;Scalable Vector Graphics (*.svg);; Encapsulated PostScript (*.eps);;Tagged Image File Format (*.tif)"))
+            if fileName:
+                w = self._mainWidget.currentWidget()
+                w.figure.savefig(fileName, dpi=data["dpi"])
     
     def showPositionInStatusBar(self, x, y):
         self.statusBar.showMessage(f"Position: {x}, {y}")
