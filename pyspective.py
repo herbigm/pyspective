@@ -6,7 +6,9 @@ Created on Thu Mar  9 09:46:12 2023
 @author: marcus
 """
 
-import sys, os
+import sys
+import os
+import re
 
 from PyQt6 import QtCore, QtGui
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
@@ -27,6 +29,7 @@ import spectratypes
 import opendialog
 import metadatadialog
 import exportdialog
+import figuredialog
 
 class ApplicationWindow(QMainWindow):
     def __init__(self):
@@ -72,6 +75,8 @@ class ApplicationWindow(QMainWindow):
         self.imageSaveAction.triggered.connect(self.saveImage)
         self.metadataAction = QAction(self.tr('Show and Edit Metadata'))
         self.metadataAction.triggered.connect(self.showMetadata)
+        self.figureAction = QAction(self.tr('Edit Figure Options'))
+        self.figureAction.triggered.connect(self.showFigureDialog)
         self.saveAction = QAction(self.tr('&Save File as JCAMP-DX'))
         self.saveAction.setIcon(QIcon.fromTheme("document-save", QIcon("icons/document-save.svg")))
         self.saveAction.setShortcut(QKeySequence("Ctrl+S"))
@@ -92,6 +97,7 @@ class ApplicationWindow(QMainWindow):
         
         # create spectrum menu
         self.spectrumMenu.addAction(self.metadataAction)
+        self.spectrumMenu.addAction(self.figureAction)
         
         self.menuBar.addMenu(self.fileMenu)
         self.menuBar.addMenu(self.spectrumMenu)
@@ -146,6 +152,9 @@ class ApplicationWindow(QMainWindow):
             data = dgl.getData()
             fileName, fileTypeFilter = QFileDialog.getSaveFileName(self, "Export Current View", QDir.homePath(), self.tr("Portable Network Graphic (*.png);;Portable Document Format (*.pdf);;Scalable Vector Graphics (*.svg);; Encapsulated PostScript (*.eps);;Tagged Image File Format (*.tif)"))
             if fileName:
+                m = re.search(r"\*(\.\w{3})", fileTypeFilter, re.IGNORECASE)
+                if not fileName.endswith(m.group(1)):
+                    fileName += m.group(1)
                 w = self._mainWidget.currentWidget()
                 w.figure.savefig(fileName, dpi=data["dpi"])
     
@@ -166,6 +175,13 @@ class ApplicationWindow(QMainWindow):
                 fileName += ".dx"
             self.tabWidgets[-1].fileName = fileName
             self.tabWidgets[-1].saveSpectra()
+    
+    def showFigureDialog(self):
+        dgl = figuredialog.figureDialog()
+        dgl.setData(self.tabWidgets[-1].getFigureData())
+        if dgl.exec():
+            data = dgl.getData()
+            self.tabWidgets[-1].setFigureData(data)
         
 if __name__ == "__main__":
     qapp = QApplication(sys.argv)
