@@ -12,7 +12,7 @@ import re
 
 from PyQt6 import QtCore, QtGui
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
-from PyQt6.QtCore import QDir, Qt
+from PyQt6.QtCore import QDir, Qt, QSize
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QDockWidget,
     QListView,
-    QTreeView
+    QAbstractItemView
 )
 
 
@@ -83,9 +83,11 @@ class ApplicationWindow(QMainWindow):
         self.pageDock.setWindowTitle(self.tr("Pages"))
         self.pageDock.setObjectName("metadataDock")
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pageDock)
-        self.pageView = QTreeView(self)
-        self.pageView.setHeaderHidden(True)
+        self.pageView = QListView(self)
+        self.pageView.setViewMode(QListView.ViewMode.IconMode)
         self.pageDock.setWidget(self.pageView)
+        self.pageView.setIconSize(QSize(200,200))
+        self.pageView.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
@@ -96,7 +98,7 @@ class ApplicationWindow(QMainWindow):
         self.openNew.setIcon(QIcon.fromTheme("document-open", QIcon("icons/document-open.svg")))
         self.openNew.triggered.connect(lambda: self.openFile())
         
-        self.imageSaveAction = QAction(self.tr('SExport Current View to Image File'))
+        self.imageSaveAction = QAction(self.tr('Export Current View to Image File'))
         self.imageSaveAction.setIcon(QIcon.fromTheme("image-png", QIcon("icons/image-png.svg")))
         self.imageSaveAction.triggered.connect(self.saveImage)
         
@@ -179,7 +181,7 @@ class ApplicationWindow(QMainWindow):
                         c.figureCanvas.addSpectrum(newSpectrum)
                         self._mainWidget.addTab(c.figureCanvas, os.path.basename(data["File Name"]))
                         fm = datamodel.DataModel()
-                        fm.addChild(datamodel.DataModelItem(c))
+                        fm.appendRow(datamodel.DataModelItem(c))
                         self.fileModels.append(fm)
                         self.pageView.setModel(fm)
                         self.saveAction.setEnabled(True)
