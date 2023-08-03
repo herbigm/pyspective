@@ -12,22 +12,25 @@ import re
 
 from PyQt6 import QtCore, QtGui
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
-from PyQt6.QtCore import QDir
+from PyQt6.QtCore import QDir, Qt
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
     QTabWidget,
     QToolBar,
     QMenu,
-    QFileDialog
+    QFileDialog,
+    QDockWidget,
+    QListView,
+    QTreeView
 )
 
 
-import specplot
+import datamodel
 import spectrum
 import spectratypes
 import opendialog
-import metadatadialog
+import metadatadock
 import exportdialog
 import figuredialog
 
@@ -41,7 +44,7 @@ class ApplicationWindow(QMainWindow):
         self.createMenuBar()
         self.createMainWidgets()
         
-        self.tabWidgets = []
+        self.fileModels = []
         
         # settings
         self.settings = QtCore.QSettings('TUBAF', 'pySpective')
@@ -49,10 +52,17 @@ class ApplicationWindow(QMainWindow):
             self.restoreGeometry(self.settings.value("geometry"))
         if self.settings.value("state"):
             self.restoreState(self.settings.value("state"))
+        if self.settings.value("metadataDockGeometry"):
+            self.metadataDock.restoreGeometry(self.settings.value("metadataDockGeometry"))
+        
+        # init checkable actions
+        self.metadataAction.setChecked(not self.metadataDock.isHidden())
     
     def closeEvent(self, evt):
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("windowState", self.saveState())
+        self.settings.setValue("metadataDockGeometry", self.metadataDock.saveGeometry())
+        super(ApplicationWindow, self).closeEvent(evt)
         
     def createMainWidgets(self):
         # create Toolbar and Statusbar
@@ -61,22 +71,42 @@ class ApplicationWindow(QMainWindow):
         self.toolBarTabWidget = QTabWidget(self.toolBar)
         self.toolBarTabWidget.setFixedHeight(100)
         self.toolBar.addWidget(self.toolBarTabWidget)
+        
         self.statusBar = self.statusBar()
+        
+        self.metadataDock = metadatadock.metadataDock(self)
+        self.metadataDock.setObjectName("metadataDock")
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.metadataDock)
+        self.metadataDock.visibilityChanged.connect(self.showMetadataAction)
+        
+        self.pageDock = QDockWidget(self)
+        self.pageDock.setWindowTitle(self.tr("Pages"))
+        self.pageDock.setObjectName("metadataDock")
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pageDock)
+        self.pageView = QTreeView(self)
+        self.pageView.setHeaderHidden(True)
+        self.pageDock.setWidget(self.pageView)
         
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
         self.closeAction.setIcon(QIcon.fromTheme("application-exit", QIcon("icons/application-exit.avg")))
         self.closeAction.triggered.connect(self.close)
+        
         self.openNew = QAction(self.tr('Open Spectrum'))
         self.openNew.setIcon(QIcon.fromTheme("document-open", QIcon("icons/document-open.svg")))
         self.openNew.triggered.connect(lambda: self.openFile())
+        
         self.imageSaveAction = QAction(self.tr('SExport Current View to Image File'))
         self.imageSaveAction.setIcon(QIcon.fromTheme("image-png", QIcon("icons/image-png.svg")))
         self.imageSaveAction.triggered.connect(self.saveImage)
+        
         self.metadataAction = QAction(self.tr('Show and Edit Metadata'))
-        self.metadataAction.triggered.connect(self.showMetadata)
+        self.metadataAction.setCheckable(True)
+        self.metadataAction.triggered.connect(self.showMetadataDock)
+        
         self.figureAction = QAction(self.tr('Edit Figure Options'))
         self.figureAction.triggered.connect(self.showFigureDialog)
+        
         self.saveAction = QAction(self.tr('&Save File as JCAMP-DX'))
         self.saveAction.setIcon(QIcon.fromTheme("document-save", QIcon("icons/document-save.svg")))
         self.saveAction.setShortcut(QKeySequence("Ctrl+S"))
@@ -87,6 +117,7 @@ class ApplicationWindow(QMainWindow):
         self.menuBar = self.menuBar()
         self.fileMenu = QMenu(self.tr("&File"), self.menuBar)
         self.spectrumMenu = QMenu(self.tr("&Spectrum"), self.menuBar)
+        self.viewMenu = QMenu(self.tr("&View"), self.menuBar)
         
         # create file menu
         self.fileMenu.addAction(self.openNew)
@@ -96,11 +127,14 @@ class ApplicationWindow(QMainWindow):
         self.fileMenu.addAction(self.closeAction)
         
         # create spectrum menu
-        self.spectrumMenu.addAction(self.metadataAction)
         self.spectrumMenu.addAction(self.figureAction)
+        
+        # create view menu
+        self.viewMenu.addAction(self.metadataAction)
         
         self.menuBar.addMenu(self.fileMenu)
         self.menuBar.addMenu(self.spectrumMenu)
+        self.menuBar.addMenu(self.viewMenu)
     
     def close(self):
         super().close()
@@ -116,10 +150,12 @@ class ApplicationWindow(QMainWindow):
                 if data["Free Text Settings"]["Spectrum Type"] == "Raman":
                     newSpectrum = spectratypes.ramanSpectrum()
                     if newSpectrum.openFreeText(fileName=data["File Name"], options=data["Free Text Settings"]):
-                        c = specplot.specplot()
-                        c.addSpectrum(newSpectrum)
-                        self._mainWidget.addTab(c, os.path.basename(data["File Name"]))
-                        self.tabWidgets.append(c)
+                        c = datamodel.DataPage("Page 0")
+                        c.figureCanvas.addSpectrum(newSpectrum)
+                        self._mainWidget.addTab(c.figureCanvas, os.path.basename(data["File Name"]))
+                        fm = datamodel.DataModel()
+                        fm.addChild(datamodel.DataModelItem(c))
+                        self.fileModels.append(fm)
                 else:
                     pass
             elif data["File Type"] == "JCAMP-DX":
@@ -139,10 +175,13 @@ class ApplicationWindow(QMainWindow):
                         newSpectrum = spectratypes.ultravioletSpectrum()
                         print("ultraviolet")
                     if newSpectrum.openJCAMPDXfromString(b):
-                        c = specplot.specplot()
-                        c.addSpectrum(newSpectrum)
-                        self._mainWidget.addTab(c, os.path.basename(data["File Name"]))
-                        self.tabWidgets.append(c)
+                        c = datamodel.DataPage("Page 0")
+                        c.figureCanvas.addSpectrum(newSpectrum)
+                        self._mainWidget.addTab(c.figureCanvas, os.path.basename(data["File Name"]))
+                        fm = datamodel.DataModel()
+                        fm.addChild(datamodel.DataModelItem(c))
+                        self.fileModels.append(fm)
+                        self.pageView.setModel(fm)
                         self.saveAction.setEnabled(True)
                         
     
@@ -161,11 +200,14 @@ class ApplicationWindow(QMainWindow):
     def showPositionInStatusBar(self, x, y):
         self.statusBar.showMessage(f"Position: {x}, {y}")
     
-    def showMetadata(self):
-        dgl = metadatadialog.metadataDialog(self)
-        if dgl.exec():
-            pass
-        self.settings.setValue("MetadataDialogGeometry", dgl.saveGeometry())
+    def showMetadataDock(self, show):
+        if show:
+            self.metadataDock.show()
+        else: 
+            self.metadataDock.hide()
+            
+    def showMetadataAction(self, show):
+        self.metadataAction.setChecked(show)
 
     def saveFile(self):
         if not self.tabWidgets[-1].fileName:
