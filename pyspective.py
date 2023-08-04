@@ -25,8 +25,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView
 )
 
-
-import datamodel
+import spectivedocument
 import spectrum
 import spectratypes
 import opendialog
