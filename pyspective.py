@@ -21,8 +21,8 @@ from PyQt6.QtWidgets import (
     QMenu,
     QFileDialog,
     QDockWidget,
-    QListView,
-    QAbstractItemView
+    QListWidget,
+    QListWidgetItem
 )
 
 import spectivedocument
@@ -43,7 +43,10 @@ class ApplicationWindow(QMainWindow):
         self.createMenuBar()
         self.createMainWidgets()
         
-        self.fileModels = []
+        self.documents = []
+        self.currentDocumentIndex = None
+        self.currentPageIndex = None
+        self.currentSpectrumIndex = None
         
         # settings
         self.settings = QtCore.QSettings('TUBAF', 'pySpective')
@@ -80,13 +83,12 @@ class ApplicationWindow(QMainWindow):
         
         self.pageDock = QDockWidget(self)
         self.pageDock.setWindowTitle(self.tr("Pages"))
-        self.pageDock.setObjectName("metadataDock")
+        self.pageDock.setObjectName("pagesDock")
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pageDock)
-        self.pageView = QListView(self)
-        self.pageView.setViewMode(QListView.ViewMode.IconMode)
+        self.pageView = QListWidget(self)
+        self.pageView.setViewMode(QListWidget.ViewMode.IconMode)
         self.pageDock.setWidget(self.pageView)
         self.pageView.setIconSize(QSize(200,200))
-        self.pageView.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
@@ -151,12 +153,7 @@ class ApplicationWindow(QMainWindow):
                 if data["Free Text Settings"]["Spectrum Type"] == "Raman":
                     newSpectrum = spectratypes.ramanSpectrum()
                     if newSpectrum.openFreeText(fileName=data["File Name"], options=data["Free Text Settings"]):
-                        c = datamodel.DataPage("Page 0")
-                        c.figureCanvas.addSpectrum(newSpectrum)
-                        self._mainWidget.addTab(c.figureCanvas, os.path.basename(data["File Name"]))
-                        fm = datamodel.DataModel()
-                        fm.addChild(datamodel.DataModelItem(c))
-                        self.fileModels.append(fm)
+                        pass
                 else:
                     pass
             elif data["File Type"] == "JCAMP-DX":
@@ -176,14 +173,17 @@ class ApplicationWindow(QMainWindow):
                         newSpectrum = spectratypes.ultravioletSpectrum()
                         print("ultraviolet")
                     if newSpectrum.openJCAMPDXfromString(b):
-                        c = datamodel.DataPage("Page 0")
-                        c.figureCanvas.addSpectrum(newSpectrum)
-                        self._mainWidget.addTab(c.figureCanvas, os.path.basename(data["File Name"]))
-                        fm = datamodel.DataModel()
-                        fm.appendRow(datamodel.DataModelItem(c))
-                        self.fileModels.append(fm)
-                        self.pageView.setModel(fm)
-                        self.saveAction.setEnabled(True)
+                        document = spectivedocument.spectiveDocument()
+                        document.addPage("plot")
+                        document.pages[-1].addSpectrum(newSpectrum)
+                        self._mainWidget.addTab(document.pages[-1].plotWidget, os.path.basename(data["File Name"]))
+                        self.documents.append(document)
+                        self.currentDocumentIndex = len(self.documents)-1
+                        self.currentPageIndex = len(document.pages) - 1
+                        self.currentSpectrumIndex = len(document.pages[self.currentPageIndex].spectra) - 1
+                        self.documents[self.currentDocumentIndex].pages[self.currentPageIndex].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                        self.documents[self.currentDocumentIndex].pages[self.currentPageIndex].plotWidget.plotChanged.connect(self.showPagesInDock)
+                        self.showPagesInDock()
                         
     
     def saveImage(self):
@@ -225,6 +225,12 @@ class ApplicationWindow(QMainWindow):
         if dgl.exec():
             data = dgl.getData()
             self.tabWidgets[-1].setFigureData(data)
+    
+    def showPagesInDock(self):
+        self.pageView.clear()
+        for page in self.documents[self.currentDocumentIndex].pages:
+            newItem = QListWidgetItem(page.plotWidget.getIcon(), page.title)
+            self.pageView.addItem(newItem)
         
 if __name__ == "__main__":
     qapp = QApplication(sys.argv)

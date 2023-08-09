@@ -8,6 +8,9 @@ Created on Thu Aug  3 13:42:51 2023
 
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QVBoxLayout
+)
 
 from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
@@ -23,16 +26,26 @@ class spectiveDocument:
         self.pages = []
         
     def addPage(self, pageType):
-        pass
-
-class spectivePage(QWidget):
-    def __init__(self, parent = None):
-        super(spectivePage, self).__init__(parent)
-        self.plotWidget = specplot.specplot(self)
+        if pageType == "plot":
+            page = spectivePlotPage()
         
+        self.pages.append(page)
+        self.pages[-1].title = "Page " + str(len(self.pages))
+
+class spectivePlotPage(QWidget):
+    def __init__(self, parent = None):
+        super(spectivePlotPage, self).__init__(parent)
+        self.plotWidget = specplot.specplot(self)
+        self.layout = QVBoxLayout(self)
+        
+        self.layout.addWidget(self.plotWidget)
+        
+        self.setLayout(self.layout)
         self.spectra = []
-    
+        self.title = ""
+        
     def addSpectrum(self, spectrum):
-        pass
+        self.spectra.append(spectrum)
+        self.plotWidget.addSpectrum(spectrum)
         
         

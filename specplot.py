@@ -7,7 +7,8 @@ Created on Tue Jul 25 15:12:04 2023
 """
 
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtGui import QImage, QPixmap, QIcon
 
 import matplotlib
 matplotlib.use('QtAgg')
@@ -22,6 +23,7 @@ import numpy as np
 class specplot(FigureCanvas):
     #Signals
     positionChanged = pyqtSignal(float, float)
+    plotChanged = pyqtSignal()
     
     def __init__(self, parent = None):        
         self.parent = parent
@@ -82,6 +84,7 @@ class specplot(FigureCanvas):
             newYmin = currentYpos - ((currentYpos - currentYmin) / currentRange * newRange)
             self.ax.set_ylim(newYmin, newYmax)
             self.ax.figure.canvas.draw_idle()
+            self.plotChanged.emit()
         else:
             # zoom out
             if currentRange >= 10 * yZoomUnit:
@@ -97,6 +100,7 @@ class specplot(FigureCanvas):
                 newYmax = newYmin + newRange
             self.ax.set_ylim(newYmin, newYmax)
             self.ax.figure.canvas.draw_idle()
+            self.plotChanged.emit()
     
     def on_button_down(self, event):
         """
@@ -115,6 +119,7 @@ class specplot(FigureCanvas):
                 self.zoomrect.remove()
                 self.zoomrect = None
             self.ax.figure.canvas.draw_idle()
+            self.plotChanged.emit()
         elif event.button == 1: # start the x zooming
             self.zoomXButtonStart = event.xdata
             self.zoomrect = self.ax.add_patch(Rectangle((self.zoomXButtonStart, self.fullYlim[0]), 0, (self.fullYlim[1]-self.fullYlim[0]), alpha=0.2, color="red"))
@@ -134,6 +139,7 @@ class specplot(FigureCanvas):
             self.zoomrect.remove()
             self.zoomrect = None
             self.ax.figure.canvas.draw_idle()
+            self.plotChanged.emit()
         elif event.button == 1 and self.zoomXButtonStart != None and self.zoomXButtonStart != event.xdata: # stop position other than start position -> do the zoom
             # be carefull with the right range for the x-axis. the use can define the zoom region from up to down and the other way round....
             if (self.fullXlim[0] > self.fullXlim[1] and self.zoomXButtonStart > event.xdata) or (self.fullXlim[0] < self.fullXlim[1] and self.zoomXButtonStart < event.xdata):
@@ -144,6 +150,7 @@ class specplot(FigureCanvas):
             self.zoomrect.remove()
             self.zoomrect = None
             self.ax.figure.canvas.draw_idle()
+            self.plotChanged.emit()
     
     def addSpectrum(self, spec):
         self.spectraData.append(spec)
@@ -173,7 +180,8 @@ class specplot(FigureCanvas):
                 self.fullYlim[0] = spec.ylim[0]
             if spec.ylim[1] > self.fullYlim[1]:
                 self.fullYlim[1] = spec.ylim[1]
-        self.ax.figure.canvas.draw_idle()
+        self.ax.figure.canvas.draw()
+        self.plotChanged.emit()
     
     def saveSpectra(self):
         if len(self.spectraData) > 1:
@@ -267,4 +275,10 @@ class specplot(FigureCanvas):
         self.ax.set_ylim(data["Ylim"])
         self.ax.figure.suptitle(data["Title"])
         self.ax.figure.canvas.draw_idle()
+    
+    def getIcon(self):
+        self.canvas.draw()
+        width, height = self.figure.figbbox.width, self.figure.figbbox.height
+        im = QImage(self.canvas.buffer_rgba(), int(width), int(height), QImage.Format.Format_RGB32)
+        return QIcon(QPixmap(im))
             
