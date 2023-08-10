@@ -22,7 +22,9 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QDockWidget,
     QListWidget,
-    QListWidgetItem
+    QListWidgetItem,
+    QListView,
+    QAbstractScrollArea
 )
 
 import spectivedocument
@@ -32,12 +34,16 @@ import opendialog
 import metadatadock
 import exportdialog
 import figuredialog
+import pageview
 
 class ApplicationWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Pyspective")
         self._mainWidget = QTabWidget(self)
+        self._mainWidget.currentChanged.connect(self.documentChanged)
+        self._mainWidget.tabCloseRequested.connect(self.closeDocument)
+        self._mainWidget.setTabsClosable(True)
         self.setCentralWidget(self._mainWidget)
         self.createActions()
         self.createMenuBar()
@@ -85,10 +91,9 @@ class ApplicationWindow(QMainWindow):
         self.pageDock.setWindowTitle(self.tr("Pages"))
         self.pageDock.setObjectName("pagesDock")
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pageDock)
-        self.pageView = QListWidget(self)
-        self.pageView.setViewMode(QListWidget.ViewMode.IconMode)
+        self.pageView = pageview.pageView(self)
+        self.pageView.currentRowChanged.connect(self.pageChanged)
         self.pageDock.setWidget(self.pageView)
-        self.pageView.setIconSize(QSize(200,200))
         
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
@@ -102,6 +107,7 @@ class ApplicationWindow(QMainWindow):
         self.imageSaveAction = QAction(self.tr('Export Current View to Image File'))
         self.imageSaveAction.setIcon(QIcon.fromTheme("image-png", QIcon("icons/image-png.svg")))
         self.imageSaveAction.triggered.connect(self.saveImage)
+        self.imageSaveAction.setEnabled(False)
         
         self.metadataAction = QAction(self.tr('Show and Edit Metadata'))
         self.metadataAction.setCheckable(True)
@@ -109,6 +115,7 @@ class ApplicationWindow(QMainWindow):
         
         self.figureAction = QAction(self.tr('Edit Figure Options'))
         self.figureAction.triggered.connect(self.showFigureDialog)
+        self.figureAction.setEnabled(False)
         
         self.saveAction = QAction(self.tr('&Save File as JCAMP-DX'))
         self.saveAction.setIcon(QIcon.fromTheme("document-save", QIcon("icons/document-save.svg")))
@@ -144,6 +151,7 @@ class ApplicationWindow(QMainWindow):
         
     def openFile(self):
         dgl = opendialog.openDialog(self)
+        dgl.setOpenOptions(self.currentDocumentIndex, self.currentPageIndex)
         if dgl.exec():
             data = dgl.getData()
             if not os.path.exists(data["File Name"]):
@@ -173,17 +181,32 @@ class ApplicationWindow(QMainWindow):
                         newSpectrum = spectratypes.ultravioletSpectrum()
                         print("ultraviolet")
                     if newSpectrum.openJCAMPDXfromString(b):
-                        document = spectivedocument.spectiveDocument()
-                        document.addPage("plot")
-                        document.pages[-1].addSpectrum(newSpectrum)
-                        self._mainWidget.addTab(document.pages[-1].plotWidget, os.path.basename(data["File Name"]))
-                        self.documents.append(document)
-                        self.currentDocumentIndex = len(self.documents)-1
-                        self.currentPageIndex = len(document.pages) - 1
+                        if data['open as'] == "document":
+                            document = spectivedocument.spectiveDocument()
+                            document.addPage("plot")
+                            document.pages[-1].addSpectrum(newSpectrum)
+                            self._mainWidget.currentChanged.disconnect()
+                            self._mainWidget.addTab(document, os.path.basename(data["File Name"]))
+                            self.documents.append(document)
+                            self.currentDocumentIndex = len(self.documents)-1
+                            self.currentPageIndex = len(document.pages) - 1
+                            self._mainWidget.setCurrentIndex(self.currentDocumentIndex)
+                            self._mainWidget.currentChanged.connect(self.documentChanged)
+                        elif data['open as'] == "page":
+                            document = self.documents[self.currentDocumentIndex]
+                            document.addPage("plot")
+                            document.pages[-1].addSpectrum(newSpectrum)
+                            self.currentPageIndex = len(document.pages) - 1
+                        else:
+                            document = self.documents[self.currentDocumentIndex]
+                            document.pages[self.currentPageIndex].addSpectrum(newSpectrum)
                         self.currentSpectrumIndex = len(document.pages[self.currentPageIndex].spectra) - 1
                         self.documents[self.currentDocumentIndex].pages[self.currentPageIndex].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
                         self.documents[self.currentDocumentIndex].pages[self.currentPageIndex].plotWidget.plotChanged.connect(self.showPagesInDock)
                         self.showPagesInDock()
+                        self.figureAction.setEnabled(True)
+                        self.saveAction.setEnabled(True)
+                        self.imageSaveAction.setEnabled(True)
                         
     
     def saveImage(self):
@@ -211,26 +234,51 @@ class ApplicationWindow(QMainWindow):
         self.metadataAction.setChecked(show)
 
     def saveFile(self):
-        if not self.tabWidgets[-1].fileName:
-            fileName, _ = QFileDialog.getSaveFileName(self, "Save File", QDir.homePath(), "JCAMP-DX File (*.dx)")
+        if not self.documents[self.currentDocumentIndex].fileName:
+            if self.settings.value("LastSaveDir"):
+                fileName, _ = QFileDialog.getSaveFileName(self, "Save File", self.settings.value("LastSaveDir"), "JCAMP-DX File (*.dx)")
+            else:
+                fileName, _ = QFileDialog.getSaveFileName(self, "Save File", QDir.homePath(), "JCAMP-DX File (*.dx)")
         if fileName:
+            self.settings.setValue("LastSaveDir", os.path.dirname(fileName))
             if not fileName.endswith(".dx"):
                 fileName += ".dx"
-            self.tabWidgets[-1].fileName = fileName
-            self.tabWidgets[-1].saveSpectra()
+            self.documents[self.currentDocumentIndex].fileName = fileName
+            self.documents[self.currentDocumentIndex].saveDocument()
     
     def showFigureDialog(self):
         dgl = figuredialog.figureDialog()
-        dgl.setData(self.tabWidgets[-1].getFigureData())
+        dgl.setData(self.documents[self.currentDocumentIndex].getFigureData())
         if dgl.exec():
             data = dgl.getData()
-            self.tabWidgets[-1].setFigureData(data)
+            self.documents[self.currentDocumentIndex].setFigureData(data)
     
     def showPagesInDock(self):
+        if self.currentDocumentIndex > len(self.documents) or self.currentDocumentIndex < 0:
+            return
         self.pageView.clear()
         for page in self.documents[self.currentDocumentIndex].pages:
             newItem = QListWidgetItem(page.plotWidget.getIcon(), page.title)
             self.pageView.addItem(newItem)
+    
+    def documentChanged(self, index):
+        self.currentDocumentIndex = index
+        self.showPagesInDock()
+    
+    def pageChanged(self, index):
+        self.currentPageIndex = index
+        self.documents[self.currentDocumentIndex].goToPage(index)
+        
+    def closeDocument(self, index):
+        if index == self.currentDocumentIndex:
+            self.pageView.clear()
+        del self.documents[index]
+        self._mainWidget.removeTab(index)
+        if self._mainWidget.currentIndex() < 0:
+            # no documents open
+            self.figureAction.setEnabled(False)
+            self.saveAction.setEnabled(False)
+            self.imageSaveAction.setEnabled(False)
         
 if __name__ == "__main__":
     qapp = QApplication(sys.argv)

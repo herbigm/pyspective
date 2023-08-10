@@ -20,7 +20,9 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QComboBox,
     QGroupBox,
-    QSpinBox
+    QSpinBox,
+    QHBoxLayout,
+    QRadioButton
 )
 import json
 import os.path
@@ -99,7 +101,22 @@ class openDialog(QDialog):
         
         self.layout.addWidget(self.freeTextFileSettings, 2, 0, 1, 3)
         
-        self.layout.addWidget(self.buttonBox, 3, 0, 1, 3)
+        self.openAsGroup = QGroupBox(self.tr("Open as..."))
+        self.openAsLayout = QHBoxLayout(self)
+        self.openAsGroup.setLayout(self.openAsLayout)
+        self.layout.addWidget(self.openAsGroup, 3, 0, 1, 4)
+        
+        self.openAsDocumentRadio = QRadioButton(self.tr("new Document"))
+        self.openAsLayout.addWidget(self.openAsDocumentRadio)
+        self.openAsDocumentRadio.setChecked(True)
+        
+        self.openAsPageRadio = QRadioButton(self.tr("new Page in the current Document"))
+        self.openAsLayout.addWidget(self.openAsPageRadio)
+        
+        self.openAsPlotRadio = QRadioButton(self.tr("new Spectrum in the current Page"))
+        self.openAsLayout.addWidget(self.openAsPlotRadio)
+        
+        self.layout.addWidget(self.buttonBox, 4, 0, 1, 4)
         self.setLayout(self.layout)
         
         if self.settings.value("lastFreeTextSettings"): # load old settings if present
@@ -169,6 +186,14 @@ class openDialog(QDialog):
             self.decimalSeparatorCombo.setCurrentText(freeTextSettings["Decimal Separator"])
             self.skipRows.setValue(freeTextSettings["skip Rows"])
     
+    def setOpenOptions(self, cDoc, cPage):
+        self.openAsPageRadio.setEnabled(False)
+        self.openAsPlotRadio.setEnabled(False)
+        if cDoc != None:
+            self.openAsPageRadio.setEnabled(True)
+        if cPage != None:
+            self.openAsPlotRadio.setEnabled(True)
+    
     def getData(self):
         data = {}
         data["File Name"] = self.fileNameLabel.text()
@@ -183,5 +208,14 @@ class openDialog(QDialog):
         freeTextSettings["skip Rows"] = self.skipRows.value()
         
         data['Free Text Settings'] = freeTextSettings
+        
+        # how to open the file
+        if self.openAsDocumentRadio.isChecked():
+            data['open as'] = "document"
+        elif self.openAsPageRadio.isChecked():
+            data['open as'] = "page"
+        else:
+            data['open as'] = "plot"
+            
         self.settings.setValue("lastFreeTextSettings", freeTextSettings)
         return data
