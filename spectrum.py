@@ -67,6 +67,8 @@ class Spectrum:
         self.metadata["Sampling Information"]["Temperature"] = ""
         self.metadata["Sampling Information"]["Data Processing"] = ""
         self.metadata["Comments"] = ""
+        self.displayData = {}
+        self.displayData['Page'] = None
     
     def openFreeText(self, fileName=None, options=None, baseDir=QDir.homePath()):
         if not options:
@@ -114,7 +116,7 @@ class Spectrum:
         return False
     
     def openJCAMPDXfromString(self, s):
-        ldr = re.compile("##([\w\s/-]*)=(.*)$", re.IGNORECASE)
+        ldr = re.compile("##([\$\w\s/-]*)=(.*)$", re.IGNORECASE)
         lines = s.splitlines()
         # Definition of Factors and Delta for reading data block, may change due to file content
         xFactor = 1
@@ -256,6 +258,9 @@ class Spectrum:
                         i -= 1
                     elif label == "END":
                         break
+                    # Now starting display settings
+                    elif label == "$ON PAGE":
+                        self.displayData['Page'] = int(data)
                     else: 
                         self.metadata["Comments"] += "\r\n" + data
                 else:
@@ -269,12 +274,14 @@ class Spectrum:
             self.metadata["Notes"]["Date Time"] = date
         return True
 
-    def getAsJCAMPDX(self):
+    def getAsJCAMPDX(self, insert=None):
         c = checkLength("##TITLE=" + self.metadata["Core Data"]["Title"])
         c += checkLength("\r\n##JCAMP-DX=5.01")
         c += checkLength("\r\n##DATA TYPE=" + self.metadata["Core Data"]["Data Type"])
         c += checkLength("\r\n##ORIGIN=" + self.metadata["Core Data"]["Origin"])
         c += checkLength("\r\n##OWNER=" + self.metadata["Core Data"]["Owner"])
+        if insert:
+            c += checkLength("\r\n" + insert)
         c += checkLength("\r\n##XUNITS=" + self.metadata["Spectral Parameters"]["X Units"])
         c += checkLength("\r\n##YUNITS=" + self.metadata["Spectral Parameters"]["Y Units"])
         c += checkLength("\r\n##FIRSTX=" + str(self.x[0]))
@@ -350,7 +357,7 @@ class Spectrum:
         c += checkLength("\r\n##XYDATA=(XY)")
         for i in range(len(self.x)):
             c += "\r\n" + str(round(self.x[i], 6)) + " " + str(round(self.y[i], 6))
-        c += checkLength("\r\n##END=\r\n")
+        c += checkLength("\r\n##END= $$" + self.metadata["Core Data"]["Title"] + "\r\n")
         
         return c
                 
@@ -369,6 +376,36 @@ def getJCAMPblockFromFile(fileName):
                 blocks.append(tmpBlocks.pop())
     
     return blocks
+
+def loadJCAMPlinkBlock(s):
+    res = {}
+    ldr = re.compile("##([\$\w\s/-]*)=(.*)$", re.IGNORECASE)
+    lines = s.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if line.startswith("##"):
+            # It is an Labeled Data Record (LDR), which stops at the next LDR!
+            m = ldr.match(line)
+            if m:
+                label = m.group(1).upper()
+                data = m.group(2).strip()
+                if label != "END":
+                    while not lines[i+1].startswith("##"):
+                        data += "\r\n" + lines[i+1].strip()
+                        i += 1
+                if label =="TITLE":
+                    res['Title'] = data
+                elif label == "BLOCKS":
+                    res['Blocks'] = int(data)
+                elif label == "$PAGES":
+                    res['Pages'] = int(data)
+                elif label == "SAMPLE DESCRIPTION":
+                    res["Sample Description"] = data
+                elif label == "END":
+                    break
+        i += 1
+    return res
 
 def checkLength(s):
     if len(s) < 80:

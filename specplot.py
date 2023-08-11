@@ -133,8 +133,11 @@ class specplot(FigureCanvas):
 
         """
         if not event.inaxes:
-            return
-        if event.button == 1 and self.zoomXButtonStart == event.xdata: # start and stop at the same position -> do nothing but reset
+            self.zoomXButtonStart = None
+            self.zoomrect.remove()
+            self.zoomrect = None
+            self.ax.figure.canvas.draw_idle()
+        elif event.button == 1 and self.zoomXButtonStart == event.xdata: # start and stop at the same position -> do nothing but reset
             self.zoomXButtonStart = None
             self.zoomrect.remove()
             self.zoomrect = None
@@ -162,11 +165,11 @@ class specplot(FigureCanvas):
             self.ax.set_xlabel(self.spectraData[0].xlabel)
             self.ax.set_ylabel(self.spectraData[0].ylabel)
             # save the xlim and ylim of the plot
-            self.fullXlim = self.spectraData[0].xlim
-            self.fullYlim = self.spectraData[0].ylim
+            self.fullXlim = self.spectraData[0].xlim.copy()
+            self.fullYlim = self.spectraData[0].ylim.copy()
         else:
             # check if the xlim and ylim are still the maximum of all spectra
-            if spec.xlim[0] < spec.xlim[1]: # from lower to upperon the x axis
+            if spec.xlim[0] < spec.xlim[1]: # from lower to upper on the x axis
                 if spec.xlim[0] < self.fullXlim[0]:
                     self.fullXlim[0] = spec.xlim[0]
                 if spec.xlim[1] > self.fullXlim[1]:
@@ -180,6 +183,7 @@ class specplot(FigureCanvas):
                 self.fullYlim[0] = spec.ylim[0]
             if spec.ylim[1] > self.fullYlim[1]:
                 self.fullYlim[1] = spec.ylim[1]
+        
         self.ax.figure.canvas.draw()
         self.plotChanged.emit()
     

@@ -166,48 +166,104 @@ class ApplicationWindow(QMainWindow):
                     pass
             elif data["File Type"] == "JCAMP-DX":
                 blocks = spectrum.getJCAMPblockFromFile(data["File Name"])
-                for b in blocks:
-                    if "INFRARED SPECTRUM" in b.upper():
-                        # it is an infrared spectrum!
-                        newSpectrum = spectratypes.infraredSpectrum()
-                        print("infrared")
-                        
-                    elif "RAMAN SPECTRUM" in b.upper():
-                        # it is a Raman Spectrum!
-                        print("raman")
-                        newSpectrum = spectratypes.ramanSpectrum()
-                    elif "ULTRAVIOLET SPECTRUM" in b.upper():
-                        # it is an UV-VIS spectrum!
-                        newSpectrum = spectratypes.ultravioletSpectrum()
-                        print("ultraviolet")
-                    if newSpectrum.openJCAMPDXfromString(b):
-                        if data['open as'] == "document":
-                            document = spectivedocument.spectiveDocument()
-                            document.addPage("plot")
-                            document.pages[-1].addSpectrum(newSpectrum)
-                            self._mainWidget.currentChanged.disconnect()
-                            self._mainWidget.addTab(document, os.path.basename(data["File Name"]))
-                            self.documents.append(document)
-                            self.currentDocumentIndex = len(self.documents)-1
-                            self.currentPageIndex = len(document.pages) - 1
-                            self._mainWidget.setCurrentIndex(self.currentDocumentIndex)
-                            self._mainWidget.currentChanged.connect(self.documentChanged)
-                        elif data['open as'] == "page":
-                            document = self.documents[self.currentDocumentIndex]
-                            document.addPage("plot")
-                            document.pages[-1].addSpectrum(newSpectrum)
-                            self.currentPageIndex = len(document.pages) - 1
+                linkBlock = {}
+                linkBlock['Title'] = os.path.basename(data["File Name"])
+                linkBlock['Pages'] = 1
+                linkBlock['Blocks'] = 2 # redundant
+                if len(blocks) > 1:
+                    # there are more then one spectrum in this file.
+                    #the last block will always be the LINK block!
+                    linkBlock = spectrum.loadJCAMPlinkBlock(blocks[-1])
+                    blocks.pop()
+                pageOffset = 0
+                numPages = 0
+                if 'Pages' in linkBlock:
+                    numPages = linkBlock['Pages']
+                else:
+                    numPages = linkBlock['Blocks'] - 1
+                if data['open as'] == "document":
+                    document = spectivedocument.spectiveDocument(linkBlock['Title'])
+                    self._mainWidget.currentChanged.disconnect()
+                    self._mainWidget.addTab(document, linkBlock['Title'])
+                    self._mainWidget.setCurrentIndex(len(self.documents))
+                    self._mainWidget.currentChanged.connect(self.documentChanged)
+                    self.documents.append(document)
+                    self.currentDocumentIndex = len(self.documents)-1
+                    for i in range(numPages):
+                        document.addPage("plot")
+                        document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                        document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
+                    for i in range(len(blocks)):
+                        s = self.openSpectrum(blocks[i])
+                        if not s:
+                            continue
+                        if s.displayData['Page']:
+                            document.pages[s.displayData['Page'] - 1].addSpectrum(s)
                         else:
-                            document = self.documents[self.currentDocumentIndex]
-                            document.pages[self.currentPageIndex].addSpectrum(newSpectrum)
-                        self.currentSpectrumIndex = len(document.pages[self.currentPageIndex].spectra) - 1
-                        self.documents[self.currentDocumentIndex].pages[self.currentPageIndex].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
-                        self.documents[self.currentDocumentIndex].pages[self.currentPageIndex].plotWidget.plotChanged.connect(self.showPagesInDock)
-                        self.showPagesInDock()
-                        self.figureAction.setEnabled(True)
-                        self.saveAction.setEnabled(True)
-                        self.imageSaveAction.setEnabled(True)
+                            document.pages[i-1].addSpectrum(s)
+                    self.currentPageIndex = 0
+                    self.currentSpectrumIndex = 0
+                elif data['open as'] == "page":
+                    document = self.documents[self.currentDocumentIndex]
+                    pageOffset = len(document.pages)
+                    for i in range(numPages):
+                        document.addPage("plot")
+                        document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                        document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
+                    for i in range(len(blocks)):
+                        s = self.openSpectrum(blocks[i])
+                        if not s:
+                            continue
+                        if s.displayData['Page']:
+                            document.pages[pageOffset + s.displayData['Page'] - 1].addSpectrum(s)
+                        else:
+                            document.pages[pageOffset + i-1].addSpectrum(s)
+                    self.currentPageIndex = pageOffset
+                    self.currentSpectrumIndex = 0
+                else:
+                    document = self.documents[self.currentDocumentIndex]
+                    for i in range(len(blocks)):
+                        s = self.openSpectrum(blocks[i])
+                        if not s:
+                            continue
+                        document.pages[self.currentPageIndex].addSpectrum(s)
+                    self.currentSpectrumIndex += 1 
+                self.showPagesInDock()
+                self.figureAction.setEnabled(True)
+                self.saveAction.setEnabled(True)
+                self.imageSaveAction.setEnabled(True)
                         
+                        
+    def openSpectrum(self, block):
+        """
+        Opens a Spectrum from a JCAMP-DX Block
+
+        Parameters
+        ----------
+        block : String
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        """
+        if "INFRARED SPECTRUM" in block.upper():
+            # it is an infrared spectrum!
+            newSpectrum = spectratypes.infraredSpectrum()
+            print("infrared")
+            
+        elif "RAMAN SPECTRUM" in block.upper():
+            # it is a Raman Spectrum!
+            print("raman")
+            newSpectrum = spectratypes.ramanSpectrum()
+        elif "ULTRAVIOLET SPECTRUM" in block.upper():
+            # it is an UV-VIS spectrum!
+            newSpectrum = spectratypes.ultravioletSpectrum()
+            print("ultraviolet")
+        if newSpectrum.openJCAMPDXfromString(block):
+            return newSpectrum
+        return False
     
     def saveImage(self):
         dgl = exportdialog.exportDialog()
@@ -254,12 +310,14 @@ class ApplicationWindow(QMainWindow):
             self.documents[self.currentDocumentIndex].setFigureData(data)
     
     def showPagesInDock(self):
+        self.pageView.currentRowChanged.disconnect()
         if self.currentDocumentIndex > len(self.documents) or self.currentDocumentIndex < 0:
             return
         self.pageView.clear()
         for page in self.documents[self.currentDocumentIndex].pages:
             newItem = QListWidgetItem(page.plotWidget.getIcon(), page.title)
             self.pageView.addItem(newItem)
+        self.pageView.currentRowChanged.connect(self.pageChanged)
     
     def documentChanged(self, index):
         self.currentDocumentIndex = index
