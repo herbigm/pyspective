@@ -33,6 +33,9 @@ class specplot(FigureCanvas):
         super(specplot, self).__init__(self.figure)
         self.fullXlim = [0,0]
         self.fullYlim = [0,0]
+        self.XUnit = ""
+        self.YUnit = ""
+        
         
         # events
         self.plotMouseMove = self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
@@ -157,8 +160,7 @@ class specplot(FigureCanvas):
     
     def addSpectrum(self, spec):
         self.spectraData.append(spec)
-        (l,) = self.ax.plot(spec.x, spec.y)
-        self.spectraLines.append(l)
+        self.ax.plot(spec.x, spec.y)
         if len(self.spectraData) == 1:
             self.ax.set_xlim(self.spectraData[0].xlim)
             self.ax.set_ylim(self.spectraData[0].ylim)
@@ -167,6 +169,8 @@ class specplot(FigureCanvas):
             # save the xlim and ylim of the plot
             self.fullXlim = self.spectraData[0].xlim.copy()
             self.fullYlim = self.spectraData[0].ylim.copy()
+            self.XUnit = self.spectraData[0].metadata["Spectral Parameters"]["X Units"]
+            self.YUnit = self.spectraData[0].metadata["Spectral Parameters"]["Y Units"]
         else:
             # check if the xlim and ylim are still the maximum of all spectra
             if spec.xlim[0] < spec.xlim[1]: # from lower to upper on the x axis
@@ -187,102 +191,27 @@ class specplot(FigureCanvas):
         self.ax.figure.canvas.draw()
         self.plotChanged.emit()
     
-    def saveSpectra(self):
-        if len(self.spectraData) > 1:
-            # multiple spectra file
-            pass
-        else:
-            content = self.spectraData[0].getAsJCAMPDX()
-            with open(self.fileName, "w") as f:
-                f.write(content)
-    
-    def getFigureData(self):
-        data = {}
-        data["XLabel"] = self.ax.get_xlabel()
-        data["YLabel"] = self.ax.get_ylabel()
-        data["XUnit"] = self.spectraData[0].metadata["Spectral Parameters"]["X Units"] # ToDo: Other than the first Spectrum!
-        data["YUnit"] = self.spectraData[0].metadata["Spectral Parameters"]["Y Units"]
-        data["Xlim"] = self.ax.get_xlim()
-        data["Ylim"] = self.ax.get_ylim()
-        data["Title"] = self.supTitle
-        return data
-    
-    def setFigureData(self, data):
-        if data["XUnit"] != self.spectraData[0].metadata["Spectral Parameters"]["X Units"]:
-            if data["XUnit"] == "NANOMETERS":
-                if self.spectraData[0].metadata["Spectral Parameters"]["X Units"] == "1/CM":
-                    self.spectraData[0].x = 1e7 / np.array(self.spectraData[0].x)
-                    self.fullXlim[0] = 1e7 / self.fullXlim[0]
-                    self.fullXlim[1] = 1e7 / self.fullXlim[1]
-                elif self.spectraData[0].metadata["Spectral Parameters"]["X Units"] == "MICROMETERS":
-                    self.spectraData[0].x = np.array(self.spectraData[0].x) * 1e3
-                    self.fullXlim[0] *= 1e3
-                    self.fullXlim[1] *= 1e3
-            elif data["XUnit"] == "MICROMETERS":
-                if self.spectraData[0].metadata["Spectral Parameters"]["X Units"] == "1/CM":
-                    self.spectraData[0].x = 1e4 / np.array(self.spectraData[0].x)
-                    self.fullXlim[0] = 1e4 / self.fullXlim[0]
-                    self.fullXlim[1] = 1e4 / self.fullXlim[1]
-                elif self.spectraData[0].metadata["Spectral Parameters"]["X Units"] == "NANOMETERS":
-                    self.spectraData[0].x = np.array(self.spectraData[0].x) * 1e-3
-                    self.fullXlim[0] *= 1e-3
-                    self.fullXlim[1] *= 1e-3
-            elif data["XUnit"] == "1/CM":
-                if self.spectraData[0].metadata["Spectral Parameters"]["X Units"] == "MICROMETERS":
-                    self.spectraData[0].x = 1e4 / np.array(self.spectraData[0].x)
-                    self.fullXlim[0] = 1e4 / self.fullXlim[0]
-                    self.fullXlim[1] = 1e4 / self.fullXlim[1]
-                elif self.spectraData[0].metadata["Spectral Parameters"]["X Units"] == "NANOMETERS":
-                    self.spectraData[0].x = 1e7 / np.array(self.spectraData[0].x)
-                    self.fullXlim[0] = 1e7 / self.fullXlim[0]
-                    self.fullXlim[1] = 1e7 / self.fullXlim[1]
-            self.spectraData[0].metadata["Spectral Parameters"]["X Units"] = data["XUnit"]
-            self.spectraLines[0].set_xdata(self.spectraData[0].x)
-        
-        if data["invertX"]:
-            self.fullXlim[0], self.fullXlim[1] = self.fullXlim[1], self.fullXlim[0]
-
-        if data["YUnit"] != self.spectraData[0].metadata["Spectral Parameters"]["Y Units"]:
-            if data["YUnit"] == "TRANSMITTANCE":
-                if self.spectraData[0].metadata["Spectral Parameters"]["Y Units"] == "REFLECTANCE":
-                    pass
-                elif self.spectraData[0].metadata["Spectral Parameters"]["Y Units"] == "ABSORBANCE":
-                    self.spectraData[0].y = 10 ** -(np.array(self.spectraData[0].y))*100
-                    low, up = self.fullYlim
-                    self.fullYlim[0] = 10 ** -(up)*100
-                    self.fullYlim[1] = 10 ** -(low)*100
-            elif data["YUnit"] == "REFLECTANCE":
-                if self.spectraData[0].metadata["Spectral Parameters"]["Y Units"] == "TRANSMITTANCE":
-                    pass
-                elif self.spectraData[0].metadata["Spectral Parameters"]["Y Units"] == "ABSORBANCE":
-                    self.spectraData[0].y = 10 ** -(np.array(self.spectraData[0].y))*100
-                    low, up = self.fullYlim
-                    self.fullYlim[0] = 10 ** -(up)*100
-                    self.fullYlim[1] = 10 ** -(low)*100
-            elif data["YUnit"] == "ABSORBANCE":
-                if self.spectraData[0].metadata["Spectral Parameters"]["Y Units"] == "TRANSMITTANCE":
-                    self.spectraData[0].y = -np.log10(np.array(self.spectraData[0].y)/100)
-                    low, up = self.fullYlim
-                    self.fullYlim[0] = -np.log10(up/100)
-                    self.fullYlim[1] = -np.log10(low/100)
-                elif self.spectraData[0].metadata["Spectral Parameters"]["Y Units"] == "REFECTANCE":
-                    self.spectraData[0].y = -np.log10(np.array(self.spectraData[0].y)/100)
-                    low, up = self.fullYlim
-                    self.fullYlim[0] = -np.log10(up/100)
-                    self.fullYlim[1] = -np.log10(low/100)
-            self.spectraData[0].metadata["Spectral Parameters"]["Y Units"] = data["YUnit"]
-            self.spectraLines[0].set_ydata(self.spectraData[0].y)
-        
-        self.ax.set_xlabel(data["XLabel"])
-        self.ax.set_ylabel(data["YLabel"])
-        self.ax.set_xlim(data["Xlim"])
-        self.ax.set_ylim(data["Ylim"])
-        self.ax.figure.suptitle(data["Title"])
-        self.ax.figure.canvas.draw_idle()
-    
     def getIcon(self):
         self.canvas.draw()
         width, height = self.figure.figbbox.width, self.figure.figbbox.height
         im = QImage(self.canvas.buffer_rgba(), int(width), int(height), QImage.Format.Format_RGB32)
         return QIcon(QPixmap(im))
+    
+    def updatePlot(self):
+        xlim = self.ax.get_xlim()
+        ylim = self.ax.get_ylim()
+        xlabel = self.ax.get_xlabel()
+        ylabel = self.ax.get_ylabel()
+        self.ax.figure.clear()
+        self.ax = self.canvas.figure.subplots()
+        self.ax.set_xlim(xlim)
+        self.ax.set_ylim(ylim)
+        self.ax.set_xlabel(xlabel)
+        self.ax.set_ylabel(ylabel)
+        for spec in self.spectraData:
+            self.ax.plot(spec.x, spec.y)
+        if self.supTitle != "":
+            self.ax.figure.suptitle(self.supTitle)
+        self.ax.figure.canvas.draw_idle()
+        self.plotChanged.emit()
             

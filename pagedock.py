@@ -11,8 +11,27 @@ from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtCore import QDir, Qt, QSize
 from PyQt6.QtWidgets import (
     QListWidget,
-    QListView
+    QListView,
+    QGridLayout,
+    QDockWidget,
+    QWidget,
+    QPushButton
 )
+
+class pageDock(QDockWidget):
+    def __init__(self, parent=None):
+        super(pageDock, self).__init__(self.tr("Pages"),parent=parent)
+        self.pageView = pageView()
+        self._mainWidget = QWidget()
+        self.layout = QGridLayout()
+        self.layout.addWidget(self.pageView, 0, 0, 1, 2)
+        self.pageUpButton = QPushButton(self.tr("Page up"))
+        self.layout.addWidget(self.pageUpButton, 1, 1)
+        self.pageDownButton = QPushButton(self.tr("Page down"))
+        self.layout.addWidget(self.pageDownButton, 1, 0)
+        self._mainWidget.setLayout(self.layout)
+        self.setWidget(self._mainWidget)
+        
 
 class pageView(QListWidget):
     def __init__(self, parent=None):

@@ -17,6 +17,9 @@ from PyQt6.QtWidgets import (
     QFileDialog,
 )
 
+import numpy as np
+import json
+
 class Spectrum:
     def __init__(self, xlim = [0,0], ylim = [0,0]):
         self.xlim = xlim
@@ -69,6 +72,10 @@ class Spectrum:
         self.metadata["Comments"] = ""
         self.displayData = {}
         self.displayData['Page'] = None
+        self.displayData['Page Title'] = ""
+        self.displayData['Plot Title'] = ""
+        self.displayData["xlim"] = None
+        self.displayData["ylim"] = None
     
     def openFreeText(self, fileName=None, options=None, baseDir=QDir.homePath()):
         if not options:
@@ -112,6 +119,8 @@ class Spectrum:
             if len(self.x) > 0:
                 self.xlim = [max(self.x), min(self.x)]
                 self.ylim = [min(self.y), max(self.y)]
+                self.x = np.array(self.x)
+                self.y = np.array(self.y)
                 return True
         return False
     
@@ -256,11 +265,25 @@ class Spectrum:
                                 self.y.append(float(values[v]) * yFactor)
                             i += 1
                         i -= 1
+                        self.x = np.array(self.x)
+                        self.y = np.array(self.y)
                     elif label == "END":
                         break
                     # Now starting display settings
                     elif label == "$ON PAGE":
                         self.displayData['Page'] = int(data)
+                    elif label == "$PAGE TITLE":
+                        self.displayData['Page Title'] = data
+                    elif label == "$PLOT TITLE":
+                        self.displayData['Plot Title'] = data
+                    elif label == "$XLABEL":
+                        self.xlabel = data
+                    elif label == "$YLABEL":
+                        self.ylabel = data
+                    elif label == "$XLIM":
+                        self.displayData['xlim'] = json.loads(data)
+                    elif label == "$YLIM":
+                        self.displayData['ylim'] = json.loads(data)
                     else: 
                         self.metadata["Comments"] += "\r\n" + data
                 else:
@@ -284,12 +307,12 @@ class Spectrum:
             c += checkLength("\r\n" + insert)
         c += checkLength("\r\n##XUNITS=" + self.metadata["Spectral Parameters"]["X Units"])
         c += checkLength("\r\n##YUNITS=" + self.metadata["Spectral Parameters"]["Y Units"])
-        c += checkLength("\r\n##FIRSTX=" + str(self.x[0]))
-        c += checkLength("\r\n##LASTX=" + str(self.x[-1]))
         c += checkLength("\r\n##MAXX=" + str(max(self.x)))
         c += checkLength("\r\n##MINX=" + str(min(self.x)))
         c += checkLength("\r\n##MAXY=" + str(max(self.y)))
         c += checkLength("\r\n##MINY=" + str(min(self.y)))
+        c += checkLength("\r\n##FIRSTX=" + str(self.x[0]))
+        c += checkLength("\r\n##LASTX=" + str(self.x[-1]))
         c += checkLength("\r\n##XFACTOR=1.000") # No factor, since no memory problems are present today!
         # yFactor = max(self.y)/32000
         c += checkLength("\r\n##YFACTOR=1.000") # No factor, since no memory problems are present today!
