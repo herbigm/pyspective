@@ -190,11 +190,12 @@ class specplot(FigureCanvas):
         
         self.ax.figure.canvas.draw()
         self.plotChanged.emit()
+        return self.ax.lines[-1].get_color()
     
     def getIcon(self):
         self.canvas.draw()
         width, height = self.figure.figbbox.width, self.figure.figbbox.height
-        im = QImage(self.canvas.buffer_rgba(), int(width), int(height), QImage.Format.Format_RGB32)
+        im = QImage(self.canvas.buffer_rgba(), int(width), int(height), QImage.Format.Format_ARGB32)
         return QIcon(QPixmap(im))
     
     def updatePlot(self):

@@ -163,7 +163,7 @@ class spectivePlotPage(QWidget):
         
     def addSpectrum(self, spectrum):
         self.spectra.append(spectrum)
-        self.plotWidget.addSpectrum(spectrum)
+        self.spectra[-1].color = self.plotWidget.addSpectrum(spectrum)
         if spectrum.displayData['Plot Title'] != "":
             self.plotWidget.supTitle = spectrum.displayData['Plot Title']
             self.plotTitle = spectrum.displayData['Plot Title']

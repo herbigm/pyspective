@@ -27,6 +27,8 @@ class Spectrum:
         self.ylabel = ""
         self.xlabel = ""
         self.fileName = ""
+        self.title = ""
+        self.color = ""
         self.x = []
         self.y = []
         self.metadata = {}
@@ -146,6 +148,7 @@ class Spectrum:
                             i += 1
                     if label == "TITLE":
                         self.metadata["Core Data"]["Title"] = data
+                        self.title = data
                     elif label == "JCAMP-DX":
                         pass # no nothing with the JCAMP-DX version...
                     elif label == "DATA TYPE" or label == "DATATYPE":

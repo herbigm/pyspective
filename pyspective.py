@@ -11,7 +11,7 @@ import os
 import re
 
 from PyQt6 import QtCore, QtGui
-from PyQt6.QtGui import QAction, QIcon, QKeySequence
+from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QColor
 from PyQt6.QtCore import QDir, Qt, QSize
 from PyQt6.QtWidgets import (
     QApplication,
@@ -38,6 +38,7 @@ import metadatadock
 import exportdialog
 import pagedialog
 import pagedock
+import spectrumdialog
 
 class ApplicationWindow(QMainWindow):
     def __init__(self):
@@ -86,7 +87,7 @@ class ApplicationWindow(QMainWindow):
         self.statusBar = self.statusBar()
         
         self.metadataDock = metadatadock.metadataDock(self)
-        self.metadataDock.setObjectName("metadataDock")
+        self.metadataDock.setObjectName("metaDataDock")
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.metadataDock)
         self.metadataDock.visibilityChanged.connect(self.showMetadataAction)
         
@@ -96,6 +97,13 @@ class ApplicationWindow(QMainWindow):
         self.pageDock.pageView.currentRowChanged.connect(self.pageChanged)
         self.pageDock.pageUpButton.clicked.connect(self.pageUp)
         self.pageDock.pageDownButton.clicked.connect(self.pageDown)
+        
+        self.spectraDock = QDockWidget(self.tr("Spectra"), self)
+        self.spectraDock.setObjectName("spectraDock")
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.spectraDock)
+        self.spectraList = QListWidget(self)
+        self.spectraDock.setWidget(self.spectraList)
+        self.spectraList.itemDoubleClicked.connect(self.selectSpectrum)
         
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
@@ -256,6 +264,7 @@ class ApplicationWindow(QMainWindow):
                         document.pages[self.currentPageIndex].addSpectrum(s)
                     self.currentSpectrumIndex += 1 
                 self.showPagesInDock()
+                self.showSpectraInDock()
                 self.enableDocumentActions()
                         
     def openSpectrum(self, block):
@@ -346,12 +355,29 @@ class ApplicationWindow(QMainWindow):
         self.pageDock.pageView.setCurrentRow(self.currentPageIndex)
         self.pageDock.pageView.currentRowChanged.connect(self.pageChanged)
     
+    def showSpectraInDock(self):
+        if self.currentDocumentIndex >= len(self.documents) or self.currentDocumentIndex < 0:
+            return
+        document = self.documents[self.currentDocumentIndex]
+        if self.currentPageIndex >= len(document.pages) or self.currentPageIndex < 0:
+            return
+        page = document.pages[self.currentPageIndex]
+        self.spectraList.clear()
+        for s in page.spectra:
+            pix = QPixmap(QSize(32,32))
+            pix.fill(QColor.fromString(s.color))
+            icon = QIcon(pix)
+            item = QListWidgetItem(icon, s.title)
+            self.spectraList.addItem(item)
+    
     def documentChanged(self, index):
         self.currentDocumentIndex = index
         self.showPagesInDock()
+        self.showSpectraInDock()
     
     def pageChanged(self, index):
         self.currentPageIndex = index
+        self.showSpectraInDock()
         self.documents[self.currentDocumentIndex].goToPage(index)
         
     def closeDocument(self, index):
@@ -416,6 +442,15 @@ class ApplicationWindow(QMainWindow):
         document.pages[currentRow], document.pages[currentRow + 1] = document.pages[currentRow + 1], document.pages[currentRow]
         self.currentPageIndex += 1
         self.showPagesInDock()
+    
+    def selectSpectrum(self, clickedItem):
+        itemIndex = self.spectraList.row(clickedItem)
+        document = self.documents[self.currentDocumentIndex]
+        page = document.pages[self.currentPageIndex]
+        spectrum = page.spectra[itemIndex]
+        dgl = spectrumdialog.spectrumDialog()
+        if dgl.exec():
+            pass
         
 if __name__ == "__main__":
     qapp = QApplication(sys.argv)
