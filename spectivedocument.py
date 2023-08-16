@@ -95,6 +95,7 @@ class spectiveDocument(QWidget):
                             c += "\r\n##$YLABEL=" + s.ylabel
                             c += "\r\n##$XLIM=" + json.dumps(self.pages[p].plotWidget.ax.get_xlim())
                             c += "\r\n##$YLIM=" + json.dumps(self.pages[p].plotWidget.ax.get_ylim())
+                            c += "\r\n##$LEGEND=" + self.pages[p].plotWidget.legend
                             pageInfoSet = True
                         f.write(s.getAsJCAMPDX(c))
                 f.write("\r\n")
@@ -177,6 +178,8 @@ class spectivePlotPage(QWidget):
             self.plotWidget.ax.set_xlim(spectrum.displayData['xlim'])
         if spectrum.displayData['ylim']:
             self.plotWidget.ax.set_ylim(spectrum.displayData['ylim'])
+        if spectrum.displayData['Legend']:
+            self.plotWidget.legend = spectrum.displayData['Legend']
         self.plotWidget.updatePlot()
     
     def getFigureData(self):
@@ -189,6 +192,7 @@ class spectivePlotPage(QWidget):
         data["Ylim"] = self.plotWidget.ax.get_ylim()
         data["Title"] = self.plotWidget.supTitle
         data["PageTitle"] = self.title
+        data["Legend"] = self.plotWidget.legend
         return data
 
     def setFigureData(self, data):
@@ -221,5 +225,13 @@ class spectivePlotPage(QWidget):
         self.plotWidget.supTitle = data["Title"]
         self.plotTitle = data["Title"]
         
+        if data['Legend'] != "No Legend":
+            self.plotWidget.legend = data["Legend"]
+        else:
+            self.plotWidget.legend = ""
+        
+        self.plotWidget.updatePlot()
+    
+    def updatePlot(self):
         self.plotWidget.updatePlot()
         

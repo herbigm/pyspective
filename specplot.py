@@ -35,6 +35,7 @@ class specplot(FigureCanvas):
         self.fullYlim = [0,0]
         self.XUnit = ""
         self.YUnit = ""
+        self.legend = ""
         
         
         # events
@@ -160,7 +161,10 @@ class specplot(FigureCanvas):
     
     def addSpectrum(self, spec):
         self.spectraData.append(spec)
-        self.ax.plot(spec.x, spec.y)
+        if spec.color != "":
+            self.ax.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
+        else:
+            self.ax.plot(spec.x, spec.y, label=spec.title)
         if len(self.spectraData) == 1:
             self.ax.set_xlim(self.spectraData[0].xlim)
             self.ax.set_ylim(self.spectraData[0].ylim)
@@ -210,9 +214,11 @@ class specplot(FigureCanvas):
         self.ax.set_xlabel(xlabel)
         self.ax.set_ylabel(ylabel)
         for spec in self.spectraData:
-            self.ax.plot(spec.x, spec.y)
+            self.ax.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
         if self.supTitle != "":
             self.ax.figure.suptitle(self.supTitle)
+        if self.legend != "":
+            self.ax.legend(loc=self.legend)
         self.ax.figure.canvas.draw_idle()
         self.plotChanged.emit()
             

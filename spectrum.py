@@ -29,6 +29,8 @@ class Spectrum:
         self.fileName = ""
         self.title = ""
         self.color = ""
+        self.lineStyle = "-"
+        self.markerStyle = ""
         self.x = []
         self.y = []
         self.metadata = {}
@@ -78,6 +80,7 @@ class Spectrum:
         self.displayData['Plot Title'] = ""
         self.displayData["xlim"] = None
         self.displayData["ylim"] = None
+        self.displayData["Legend"] = ""
     
     def openFreeText(self, fileName=None, options=None, baseDir=QDir.homePath()):
         if not options:
@@ -287,6 +290,14 @@ class Spectrum:
                         self.displayData['xlim'] = json.loads(data)
                     elif label == "$YLIM":
                         self.displayData['ylim'] = json.loads(data)
+                    elif label == "$LEGEND":
+                        self.displayData['Legend'] = data
+                    elif label == "$COLOR":
+                        self.color = data
+                    elif label == "$LINE STYLE":
+                        self.lineStyle = data
+                    elif label == "$MARKER STYLE":
+                        self.markerStyle = data
                     else: 
                         self.metadata["Comments"] += "\r\n" + data
                 else:
@@ -308,6 +319,9 @@ class Spectrum:
         c += checkLength("\r\n##OWNER=" + self.metadata["Core Data"]["Owner"])
         if insert:
             c += checkLength("\r\n" + insert)
+        c += checkLength("\r\n##$COLOR=" + self.color)
+        c += checkLength("\r\n##$LINE STYLE=" + self.lineStyle)
+        c += checkLength("\r\n##$MARKER STYLE=" + self.markerStyle)
         c += checkLength("\r\n##XUNITS=" + self.metadata["Spectral Parameters"]["X Units"])
         c += checkLength("\r\n##YUNITS=" + self.metadata["Spectral Parameters"]["Y Units"])
         c += checkLength("\r\n##MAXX=" + str(max(self.x)))
@@ -386,6 +400,21 @@ class Spectrum:
         c += checkLength("\r\n##END= $$" + self.metadata["Core Data"]["Title"] + "\r\n")
         
         return c
+    
+    def getDisplayData(self):
+        data = {}
+        data["Title"] = self.title
+        data["Color"] = self.color
+        data["Line Style"] = self.lineStyle
+        data["Marker Style"] = self.markerStyle
+        return data
+    
+    def setDisplayData(self, data):
+        self.title = data["Title"]
+        self.metadata["Core Data"]["Title"] = data["Title"]
+        self.color = data["Color"]
+        self.lineStyle = data["Line Style"]
+        self.markerStyle = data["Marker Style"]
                 
 
 def getJCAMPblockFromFile(fileName):

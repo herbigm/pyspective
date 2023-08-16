@@ -76,9 +76,13 @@ class pageDialog(QDialog):
         self.layout.addWidget(QLabel(self.tr("Title in Plot: ")), 8,0)
         self.titleEdit = QLineEdit()
         self.layout.addWidget(self.titleEdit, 8,1,1,3)
+        self.layout.addWidget(QLabel(self.tr("Show Legend: ")), 9,0)
+        self.legendCombo = QComboBox()
+        self.legendCombo.addItems(['No Legend', 'best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center'])
+        self.layout.addWidget(self.legendCombo, 9,1, 1, 3)
         
         
-        self.layout.addWidget(self.buttonBox, 9, 0, 1, 4)
+        self.layout.addWidget(self.buttonBox, 10, 0, 1, 4)
         self.setLayout(self.layout)
         
         if self.settings.value("lastFigureOptions"): # load old settings if present
@@ -96,6 +100,7 @@ class pageDialog(QDialog):
         data["Ylim"] = [float(self.yRangeLower.text()), float(self.yRangeUpper.text())]
         data["Title"] = self.titleEdit.text()
         data["PageTitle"] = self.pageTitleEdit.text()
+        data['Legend'] = self.legendCombo.currentText()
         self.settings.setValue("lastFigureOptions", data)
         return data
     
@@ -126,6 +131,11 @@ class pageDialog(QDialog):
             self.titleEdit.setText(data["Title"])
         if "PageTitle" in data:
             self.pageTitleEdit.setText(data["PageTitle"])
+        if "Legend" in data:
+            if data["Legend"] != "":
+                self.legendCombo.setCurrentText(data["Legend"])
+            else:
+                self.legendCombo.setCurrentText("No Legend")
         self.oldData = self.getData()
     
     def invertX(self, state):
