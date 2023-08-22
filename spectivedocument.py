@@ -54,6 +54,15 @@ class spectiveDocument(QWidget):
             self.pages[self.currentPageIndex].plotWidget.hide()
         self.pages[index].plotWidget.show()
         self.currentPageIndex = index
+    
+    def deletePage(self, row):
+        self.pages.pop(row)
+        if row >= len(self.pages):
+            return len(self.pages) - 1
+        elif len(self.pages) == 0:
+            return None
+        else:
+            return row
         
     def saveDocument(self, fileName = None):
         if not self.fileName and not fileName:
@@ -234,4 +243,24 @@ class spectivePlotPage(QWidget):
     
     def updatePlot(self):
         self.plotWidget.updatePlot()
-        
+    
+    def spectrumDown(self, row):
+        self.spectra[row], self.spectra[row + 1] = self.spectra[row + 1], self.spectra[row]
+        self.plotWidget.spectraData[row], self.plotWidget.spectraData[row + 1] = self.plotWidget.spectraData[row + 1], self.plotWidget.spectraData[row]
+        self.updatePlot()
+    
+    def spectrumUp(self, row):
+        self.spectra[row], self.spectra[row - 1] = self.spectra[row - 1], self.spectra[row]
+        self.plotWidget.spectraData[row], self.plotWidget.spectraData[row - 1] = self.plotWidget.spectraData[row - 1], self.plotWidget.spectraData[row]
+        self.updatePlot()
+    
+    def deleteSpectrum(self, row):
+        self.spectra.pop(row)
+        self.plotWidget.deleteSpectrum(row)
+        self.plotWidget.updatePlot()
+        if row >= len(self.spectra):
+            return len(self.spectra) - 1
+        elif len(self.spectra) == 0:
+            return None
+        else:
+            return row

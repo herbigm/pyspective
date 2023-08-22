@@ -37,8 +37,9 @@ import opendialog
 import metadatadock
 import exportdialog
 import pagedialog
-import pagedock
+import spectiveview
 import spectrumdialog
+import processdocks
 
 class ApplicationWindow(QMainWindow):
     def __init__(self):
@@ -82,9 +83,13 @@ class ApplicationWindow(QMainWindow):
         # create Toolbar and Statusbar
         self.toolBar = self.addToolBar('Main')
         self.toolBar.setObjectName("MainToolBar")
-        self.toolBarTabWidget = QTabWidget(self.toolBar)
-        self.toolBarTabWidget.setFixedHeight(100)
-        self.toolBar.addWidget(self.toolBarTabWidget)
+        self.toolBar.addAction(self.openAction)
+        self.toolBar.addAction(self.saveDocumentAction)
+        self.toolBar.addSeparator()
+        self.toolBar.addAction(self.pageDockAction)
+        self.toolBar.addAction(self.spectraDockAction)
+        self.toolBar.addAction(self.metadataDockAction)
+        self.toolBar.addAction(self.peakpickingDockAction)
         
         self.statusBar = self.statusBar()
         
@@ -94,31 +99,47 @@ class ApplicationWindow(QMainWindow):
         self.metadataDock.visibilityChanged.connect(lambda show: self.metadataDockAction.setChecked(show))
         self.metadataDock.dataChanged.connect(self.updateMetadata)
         
-        self.pageDock = pagedock.pageDock(self)
+        self.pageDock = QDockWidget(self.tr("Pages"), self)
         self.pageDock.setObjectName("pagesDock")
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pageDock)
         self.pageDock.visibilityChanged.connect(lambda show: self.pageDockAction.setChecked(show))
-        self.pageDock.pageView.currentRowChanged.connect(self.pageChanged)
-        self.pageDock.pageUpButton.clicked.connect(self.pageUp)
-        self.pageDock.pageDownButton.clicked.connect(self.pageDown)
+        self.pageView = spectiveview.pageView()
+        self.pageDock.setWidget(self.pageView)
+        self.pageView.currentRowChanged.connect(self.pageChanged)
+        self.pageView.itemDoubleClicked.connect(self.pageEdit)
+        self.pageView.pageUpRequest.connect(self.pageUp)
+        self.pageView.pageDownRequest.connect(self.pageDown)
+        self.pageView.pageEditRequest.connect(self.pageEdit)
+        self.pageView.pageDeleteRequest.connect(self.pageDelete)
         
         self.spectraDock = QDockWidget(self.tr("Spectra"), self)
         self.spectraDock.setObjectName("spectraDock")
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.spectraDock)
         self.spectraDock.visibilityChanged.connect(lambda show: self.spectraDockAction.setChecked(show))
-        self.spectraList = QListWidget(self)
+        self.spectraList = spectiveview.spectraView(self)
         self.spectraDock.setWidget(self.spectraList)
-        self.spectraList.itemDoubleClicked.connect(self.selectSpectrum)
+        self.spectraList.itemDoubleClicked.connect(self.spectrumEdit)
         self.spectraList.currentRowChanged.connect(self.currentSpectrumChanged)
+        self.spectraList.spectrumUpRequest.connect(self.spectrumUp)
+        self.spectraList.spectrumDownRequest.connect(self.spectrumDown)
+        self.spectraList.spectrumEditRequest.connect(self.spectrumEdit)
+        self.spectraList.spectrumDeleteRequest.connect(self.spectrumDelete)
+        
+        self.peakpickingDock = processdocks.peakpickingDock(self)
+        self.peakpickingDock.setObjectName("PeakPickingDock")
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.peakpickingDock)
+        self.peakpickingDock.visibilityChanged.connect(lambda show: self.peakpickingDockAction.setChecked(show))
+        self.peakpickingDock.peaksFound.connect(self.updatePlot)
+        #self.peakpickingDock.hide()
         
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
         self.closeAction.setIcon(QIcon.fromTheme("application-exit", QIcon("icons/application-exit.avg")))
         self.closeAction.triggered.connect(self.close)
         
-        self.openNew = QAction(self.tr('Open Spectrum'))
-        self.openNew.setIcon(QIcon.fromTheme("document-open", QIcon("icons/document-open.svg")))
-        self.openNew.triggered.connect(self.openFile)
+        self.openAction = QAction(self.tr('Open Spectrum'))
+        self.openAction.setIcon(QIcon.fromTheme("document-open", QIcon("icons/document-open.svg")))
+        self.openAction.triggered.connect(self.openFile)
         
         self.documentTitleAction = QAction(self.tr("Edit Document Title"))
         self.documentTitleAction.setEnabled(False)
@@ -128,7 +149,7 @@ class ApplicationWindow(QMainWindow):
         self.savePageAction.setEnabled(False)
         self.savePageAction.triggered.connect(self.savePage)
         
-        self.saveSpectrumAction = QAction(self.tr("Save current Spectrum"))
+        self.saveSpectrumAction = QAction(self.tr("Save Current Spectrum"))
         self.saveSpectrumAction.setEnabled(False)
         self.saveSpectrumAction.triggered.connect(self.saveSpectrum)
         
@@ -149,8 +170,12 @@ class ApplicationWindow(QMainWindow):
         self.spectraDockAction.setCheckable(True)
         self.spectraDockAction.triggered.connect(self.showSpectraDock)
         
+        self.peakpickingDockAction = QAction(self.tr('Show Peakpicking Dock'))
+        self.peakpickingDockAction.setCheckable(True)
+        self.peakpickingDockAction.triggered.connect(self.showPeakpickingDock)
+        
         self.pageEditAction = QAction(self.tr('Edit Page'))
-        self.pageEditAction.triggered.connect(self.showPageDialog)
+        self.pageEditAction.triggered.connect(self.pageEdit)
         self.pageEditAction.setEnabled(False)
         
         self.saveDocumentAction = QAction(self.tr('&Save Document as JCAMP-DX'))
@@ -166,7 +191,7 @@ class ApplicationWindow(QMainWindow):
         self.viewMenu = QMenu(self.tr("&View"), self.menuBar)
         
         # create file menu
-        self.fileMenu.addAction(self.openNew)
+        self.fileMenu.addAction(self.openAction)
         self.fileMenu.addAction(self.saveDocumentAction)
         self.fileMenu.addSeparator()
         self.fileMenu.addAction(self.closeAction)
@@ -184,6 +209,7 @@ class ApplicationWindow(QMainWindow):
         self.viewMenu.addAction(self.metadataDockAction)
         self.viewMenu.addAction(self.pageDockAction)
         self.viewMenu.addAction(self.spectraDockAction)
+        self.viewMenu.addAction(self.peakpickingDockAction)
         
         self.menuBar.addMenu(self.fileMenu)
         self.menuBar.addMenu(self.documentMenu)
@@ -346,6 +372,12 @@ class ApplicationWindow(QMainWindow):
             self.spectraDock.show()
         else: 
             self.spectraDock.hide()
+            
+    def showPeakpickingDock(self, show):
+        if show:
+            self.peakpickingDock.show()
+        else: 
+            self.peakpickingDock.hide()
 
     def saveFile(self):
         if not self.documents[self.currentDocumentIndex].fileName:
@@ -362,24 +394,16 @@ class ApplicationWindow(QMainWindow):
             self.documents[self.currentDocumentIndex].fileName = fileName
             self.documents[self.currentDocumentIndex].saveDocument()
     
-    def showPageDialog(self):
-        dgl = pagedialog.pageDialog()
-        dgl.setData(self.documents[self.currentDocumentIndex].getFigureData())
-        if dgl.exec():
-            data = dgl.getData()
-            self.documents[self.currentDocumentIndex].setFigureData(data)
-            self.currentSpectrumChanged(self.currentSpectrumIndex)
-    
     def showPagesInDock(self):
-        self.pageDock.pageView.currentRowChanged.disconnect()
+        self.pageView.currentRowChanged.disconnect()
         if self.currentDocumentIndex > len(self.documents) or self.currentDocumentIndex < 0:
             return
-        self.pageDock.pageView.clear()
+        self.pageView.clear()
         for page in self.documents[self.currentDocumentIndex].pages:
             newItem = QListWidgetItem(page.plotWidget.getIcon(), page.title)
-            self.pageDock.pageView.addItem(newItem)
-        self.pageDock.pageView.setCurrentRow(self.currentPageIndex)
-        self.pageDock.pageView.currentRowChanged.connect(self.pageChanged)
+            self.pageView.addItem(newItem)
+        self.pageView.setCurrentRow(self.currentPageIndex)
+        self.pageView.currentRowChanged.connect(self.pageChanged)
     
     def showSpectraInDock(self):
         if self.currentDocumentIndex >= len(self.documents) or self.currentDocumentIndex < 0:
@@ -415,7 +439,7 @@ class ApplicationWindow(QMainWindow):
         
     def closeDocument(self, index):
         if index == self.currentDocumentIndex:
-            self.pageDock.pageView.clear()
+            self.pageView.clear()
         del self.documents[index]
         self._mainWidget.removeTab(index)
         if self._mainWidget.currentIndex() < 0:
@@ -457,37 +481,81 @@ class ApplicationWindow(QMainWindow):
                 fileName += ".dx"
             document = self.documents[self.currentDocumentIndex].savePage(fileName)
     
-    def pageUp(self):
+    def pageEdit(self, row = -1):
+        dgl = pagedialog.pageDialog()
+        if row == -1:
+            row = self.currentPageIndex
+        if type(row) != int:
+            row = self.pageView.row(row)
+        if row != self.currentPageIndex:
+            self.pageView.setCurrentRow(row)
+        dgl.setData(self.documents[self.currentDocumentIndex].getFigureData())
+        if dgl.exec():
+            data = dgl.getData()
+            self.documents[self.currentDocumentIndex].setFigureData(data)
+            self.currentSpectrumChanged(self.currentSpectrumIndex)
+    
+    def pageUp(self, row):
         document = self.documents[self.currentDocumentIndex]
-        currentRow = self.pageDock.pageView.currentRow()
-        if currentRow < 1:
+        if row < 1:
             return
-        document.pages[currentRow], document.pages[currentRow - 1] = document.pages[currentRow - 1], document.pages[currentRow]
+        document.pages[row], document.pages[row - 1] = document.pages[row - 1], document.pages[row]
         self.currentPageIndex -= 1
         self.showPagesInDock()
     
-    def pageDown(self):
+    def pageDown(self, row):
         document = self.documents[self.currentDocumentIndex]
-        currentRow = self.pageDock.pageView.currentRow()
         maxRow = len(document.pages) - 1
-        if currentRow > maxRow - 1:
+        if row > maxRow - 1:
             return
-        document.pages[currentRow], document.pages[currentRow + 1] = document.pages[currentRow + 1], document.pages[currentRow]
+        document.pages[row], document.pages[row + 1] = document.pages[row + 1], document.pages[row]
         self.currentPageIndex += 1
         self.showPagesInDock()
     
-    def selectSpectrum(self, clickedItem):
-        itemIndex = self.spectraList.row(clickedItem)
-        self.currentSpectrumIndex = itemIndex
+    def pageDelete(self, row):
+        document = self.documents[self.currentDocumentIndex]
+        self.currentPageIndex = document.deletePage(row)
+        self.showPagesInDock()
+        
+    
+    def spectrumEdit(self, row):
+        if type(row) != int:
+            row = self.spectraList.row(row)
+        self.currentSpectrumIndex = row
         document = self.documents[self.currentDocumentIndex]
         page = document.pages[self.currentPageIndex]
-        spectrum = page.spectra[itemIndex]
+        spectrum = page.spectra[row]
         dgl = spectrumdialog.spectrumDialog()
         dgl.setData(spectrum.getDisplayData())
         if dgl.exec():
             spectrum.setDisplayData(dgl.getData())
             page.updatePlot()
             self.showSpectraInDock()
+    
+    def spectrumUp(self, row):
+        document = self.documents[self.currentDocumentIndex]
+        page = document.pages[self.currentPageIndex]
+        if row < 1:
+            return
+        page.spectrumUp(row)
+        self.currentSpectrumIndex -= 1
+        self.showSpectraInDock()
+        
+    def spectrumDown(self, row):
+        document = self.documents[self.currentDocumentIndex]
+        page = document.pages[self.currentPageIndex]
+        maxRow = len(page.spectra) - 1
+        if row > maxRow - 1:
+            return
+        page.spectrumDown(row)
+        self.currentSpectrumIndex += 1
+        self.showSpectraInDock()
+    
+    def spectrumDelete(self, row):
+        document = self.documents[self.currentDocumentIndex]
+        page = document.pages[self.currentPageIndex]
+        self.currentSpectrumIndex = page.deleteSpectrum(row)
+        self.showSpectraInDock()
             
     def currentSpectrumChanged(self, index):
         self.currentSpectrumIndex = index
@@ -497,6 +565,7 @@ class ApplicationWindow(QMainWindow):
         self.metadataDock.dataChanged.disconnect()
         self.metadataDock.setData(spectrum.metadata)
         self.metadataDock.dataChanged.connect(self.updateMetadata)
+        self.peakpickingDock.spectrum = spectrum
     
     def updateMetadata(self, data):
         document = self.documents[self.currentDocumentIndex]
@@ -505,6 +574,11 @@ class ApplicationWindow(QMainWindow):
         spectrum.metadata = data
         spectrum.title = data["Core Data"]["Title"]
         self.showSpectraInDock()
+    
+    def updatePlot(self):
+        document = self.documents[self.currentDocumentIndex]
+        page = document.pages[self.currentPageIndex]
+        page.updatePlot()
                 
 if __name__ == "__main__":
     qapp = QApplication(sys.argv)

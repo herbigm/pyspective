@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 import numpy as np
 import json
+from scipy.signal import find_peaks
 
 class Spectrum:
     def __init__(self, xlim = [0,0], ylim = [0,0]):
@@ -33,6 +34,8 @@ class Spectrum:
         self.markerStyle = ""
         self.x = []
         self.y = []
+        self.peaks = []
+        self.peakString = ""
         self.metadata = {}
         self.metadata["Core Data"] = {}
         self.metadata["Core Data"]["Title"] = ""
@@ -415,6 +418,29 @@ class Spectrum:
         self.color = data["Color"]
         self.lineStyle = data["Line Style"]
         self.markerStyle = data["Marker Style"]
+    
+    def peakpicking(self, height=None, threshold=None, distance=None, prominence=None, width=None):
+        self.peaks, _ = find_peaks(self.y, height, threshold, distance, prominence, width)
+        self.peakString = ""
+        peaksY = self.y[self.peaks]
+        peaksX = self.x[self.peaks]
+        maxY = np.max(self.y)
+        peakStringList = []
+        for i in range(len(self.peaks)):
+            h = peaksY[i] * 100 / maxY
+            if h >= 80:
+                relHeight = "vs"
+            elif h >= 60:
+                relHeight = "s"
+            elif h >= 40:
+                relHeight = "m"
+            elif h >= 20:
+                relHeight = "w"
+            elif h < 20:
+                relHeight = "vw"
+            peakStringList.append(str(round(peaksX[i], 1)) + " (" + relHeight + ")")
+        self.peakString = ", ".join(peakStringList)
+        return self.peakString
                 
 
 def getJCAMPblockFromFile(fileName):

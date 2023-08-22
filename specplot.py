@@ -196,6 +196,38 @@ class specplot(FigureCanvas):
         self.plotChanged.emit()
         return self.ax.lines[-1].get_color()
     
+    def deleteSpectrum(self, row):
+        self.spectraData.pop(row)
+        for i in range(len(self.spectraData)):
+            if i == 0:
+                self.ax.set_xlim(self.spectraData[0].xlim)
+                self.ax.set_ylim(self.spectraData[0].ylim)
+                self.ax.set_xlabel(self.spectraData[0].xlabel)
+                self.ax.set_ylabel(self.spectraData[0].ylabel)
+                # save the xlim and ylim of the plot
+                self.fullXlim = self.spectraData[0].xlim.copy()
+                self.fullYlim = self.spectraData[0].ylim.copy()
+                self.XUnit = self.spectraData[0].metadata["Spectral Parameters"]["X Units"]
+                self.YUnit = self.spectraData[0].metadata["Spectral Parameters"]["Y Units"]
+            else:
+                spec = self.spectra[i]
+                if spec.xlim[0] < spec.xlim[1]: # from lower to upper on the x axis
+                    if spec.xlim[0] < self.fullXlim[0]:
+                        self.fullXlim[0] = spec.xlim[0]
+                    if spec.xlim[1] > self.fullXlim[1]:
+                        self.fullXlim[1] = spec.xlim[1]
+                else: # from upper to lower on x axis (e. g. IR and Raman)
+                    if spec.xlim[0] > self.fullXlim[0]:
+                        self.fullXlim[0] = spec.xlim[0]
+                    if spec.xlim[1] < self.fullXlim[1]:
+                        self.fullXlim[1] = spec.xlim[1]
+                if spec.ylim[0] < self.fullYlim[0]:
+                    self.fullYlim[0] = spec.ylim[0]
+                if spec.ylim[1] > self.fullYlim[1]:
+                    self.fullYlim[1] = spec.ylim[1] 
+        self.ax.figure.canvas.draw_idle()
+        self.plotChanged.emit()
+    
     def getIcon(self):
         self.canvas.draw()
         width, height = self.figure.figbbox.width, self.figure.figbbox.height
@@ -215,6 +247,8 @@ class specplot(FigureCanvas):
         self.ax.set_ylabel(ylabel)
         for spec in self.spectraData:
             self.ax.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
+            if len(spec.peaks) > 0:
+                self.ax.plot(spec.x[spec.peaks], spec.y[spec.peaks], "+", color=spec.color, label="_Hidden")
         if self.supTitle != "":
             self.ax.figure.suptitle(self.supTitle)
         if self.legend != "":
