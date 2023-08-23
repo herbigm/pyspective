@@ -90,6 +90,7 @@ class ApplicationWindow(QMainWindow):
         self.toolBar.addAction(self.spectraDockAction)
         self.toolBar.addAction(self.metadataDockAction)
         self.toolBar.addAction(self.peakpickingDockAction)
+        self.toolBar.addAction(self.calculateDerivativeAction)
         
         self.statusBar = self.statusBar()
         
@@ -129,7 +130,7 @@ class ApplicationWindow(QMainWindow):
         self.peakpickingDock.setObjectName("PeakPickingDock")
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.peakpickingDock)
         self.peakpickingDock.visibilityChanged.connect(lambda show: self.peakpickingDockAction.setChecked(show))
-        self.peakpickingDock.peaksFound.connect(self.updatePlot)
+        self.peakpickingDock.peaksChanged.connect(self.updatePlot)
         #self.peakpickingDock.hide()
         
     def createActions(self):
@@ -183,6 +184,9 @@ class ApplicationWindow(QMainWindow):
         self.saveDocumentAction.setShortcut(QKeySequence("Ctrl+S"))
         self.saveDocumentAction.setEnabled(False)
         self.saveDocumentAction.triggered.connect(self.saveFile)
+        
+        self.calculateDerivativeAction = QAction(self.tr("Calculate Derivative"))
+        self.calculateDerivativeAction.triggered.connect(self.calculateDerivative)
         
     def createMenuBar(self):
         self.menuBar = self.menuBar()
@@ -565,7 +569,7 @@ class ApplicationWindow(QMainWindow):
         self.metadataDock.dataChanged.disconnect()
         self.metadataDock.setData(spectrum.metadata)
         self.metadataDock.dataChanged.connect(self.updateMetadata)
-        self.peakpickingDock.spectrum = spectrum
+        self.peakpickingDock.setSpectrum(spectrum)
     
     def updateMetadata(self, data):
         document = self.documents[self.currentDocumentIndex]
@@ -579,6 +583,14 @@ class ApplicationWindow(QMainWindow):
         document = self.documents[self.currentDocumentIndex]
         page = document.pages[self.currentPageIndex]
         page.updatePlot()
+        
+    def calculateDerivative(self):
+        document = self.documents[self.currentDocumentIndex]
+        page = document.pages[self.currentPageIndex]
+        spectrum = page.spectra[self.currentSpectrumIndex]
+        spec = spectrum.calculateDerivative()
+        page.addSpectrum(spec)
+        self.showSpectraInDock()
                 
 if __name__ == "__main__":
     qapp = QApplication(sys.argv)

@@ -89,6 +89,16 @@ class ramanSpectrum(opticalSpectrum):
         self.xlabel = "wave number [cm⁻¹]"
         self.ylabel = "raman intensity"
         self.metadata["Core Data"]["Data Type"] = "RAMAN SPECTRUM"
+        
+    def calculateDerivative(self):
+        spec = ramanSpectrum()
+        spec.x = self.x[1:] + np.diff(self.x)
+        spec.y = np.diff(self.y)
+        spec.yaxis = 1
+        spec.title = self.title + " derivative"
+        spec.metadata["Core Data"]["Title"] = self.metadata["Core Data"]["Title"] + " derivative"
+        spec.metadata["Core Data"]["Data Type"] = "RAMAN SPECTRUM DERIVATIVE"
+        return spec
 
 class infraredSpectrum(opticalSpectrum):
     def __init__(self):
@@ -96,6 +106,16 @@ class infraredSpectrum(opticalSpectrum):
         self.xlabel = "wave number [cm⁻¹]"
         self.ylabel = "%Transmittance"
         self.metadata["Core Data"]["Data Type"] = "INFRARED SPECTRUM"
+        
+    def calculateDerivative(self):
+        spec = infraredSpectrum()
+        spec.x = self.x[1:] + np.diff(self.x)
+        spec.y = np.diff(self.y)
+        spec.yaxis = 1
+        spec.title = self.title + " derivative"
+        spec.metadata["Core Data"]["Title"] = self.metadata["Core Data"]["Title"] + " derivative"
+        spec.metadata["Core Data"]["Data Type"] = "INFRARED SPECTRUM DERIVATIVE"
+        return spec
 
 class ultravioletSpectrum(opticalSpectrum):
     def __init__(self):
@@ -103,3 +123,13 @@ class ultravioletSpectrum(opticalSpectrum):
         self.xlabel = "wave lenght [nm]"
         self.ylabel = "absorbance"
         self.metadata["Core Data"]["Data Type"] = "ULTRAVIOLET SPECTRUM"
+        
+    def calculateDerivative(self):
+        spec = ultravioletSpectrum()
+        spec.x = self.x[1:] + np.diff(self.x)
+        spec.y = np.diff(self.y)
+        spec.yaxis = 1
+        spec.title = self.title + " derivative"
+        spec.metadata["Core Data"]["Title"] = self.metadata["Core Data"]["Title"] + " derivative"
+        spec.metadata["Core Data"]["Data Type"] = "ULTRAVIOLET SPECTRUM DERIVATIVE"
+        return spec

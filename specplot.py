@@ -161,10 +161,19 @@ class specplot(FigureCanvas):
     
     def addSpectrum(self, spec):
         self.spectraData.append(spec)
-        if spec.color != "":
-            self.ax.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
+        if spec.yaxis > 0:
+            if not hasattr(self, 'ax2'):
+                self.ax2 = self.ax.twinx()
+                self.ax2.set_ylabel("derivative")
+            if spec.color != "":
+                self.ax2.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
+            else:
+                self.ax2.plot(spec.x, spec.y, label=spec.title)
         else:
-            self.ax.plot(spec.x, spec.y, label=spec.title)
+            if spec.color != "":
+                self.ax.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
+            else:
+                self.ax.plot(spec.x, spec.y, label=spec.title)
         if len(self.spectraData) == 1:
             self.ax.set_xlim(self.spectraData[0].xlim)
             self.ax.set_ylim(self.spectraData[0].ylim)
@@ -194,6 +203,8 @@ class specplot(FigureCanvas):
         
         self.ax.figure.canvas.draw()
         self.plotChanged.emit()
+        if spec.yaxis > 0:
+            return self.ax2.lines[-1].get_color()
         return self.ax.lines[-1].get_color()
     
     def deleteSpectrum(self, row):
@@ -246,13 +257,23 @@ class specplot(FigureCanvas):
         self.ax.set_xlabel(xlabel)
         self.ax.set_ylabel(ylabel)
         for spec in self.spectraData:
-            self.ax.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
-            if len(spec.peaks) > 0:
-                self.ax.plot(spec.x[spec.peaks], spec.y[spec.peaks], "+", color=spec.color, label="_Hidden")
+            if spec.yaxis > 0:
+                if not hasattr(self, 'ax2'):
+                    self.ax2 = self.ax1.twinx()
+                    self.ax2.set_ylabel("derivative")
+                self.ax2.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
+                if len(spec.peaks) > 0:
+                    self.ax2.plot(spec.x[spec.peaks], spec.y[spec.peaks], "+", color=spec.peakParameter['Color'], label="_Hidden")
+            else:
+                self.ax.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
+                if len(spec.peaks) > 0:
+                    self.ax.plot(spec.x[spec.peaks], spec.y[spec.peaks], "+", color=spec.peakParameter['Color'], label="_Hidden")
         if self.supTitle != "":
             self.ax.figure.suptitle(self.supTitle)
         if self.legend != "":
             self.ax.legend(loc=self.legend)
         self.ax.figure.canvas.draw_idle()
+        if hasattr(self, 'ax2'):
+            self.ax2.figure.canvas.draw_idle()
         self.plotChanged.emit()
             

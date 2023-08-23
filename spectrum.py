@@ -34,8 +34,16 @@ class Spectrum:
         self.markerStyle = ""
         self.x = []
         self.y = []
+        self.yaxis = 0
         self.peaks = []
         self.peakString = ""
+        self.peakParameter = {}
+        self.peakParameter["Height"] = ""
+        self.peakParameter["Threshold"] = ""
+        self.peakParameter["Distance"] = 1
+        self.peakParameter["Prominence"] = ""
+        self.peakParameter["Width"] = ""
+        self.peakParameter["Color"] = "#0064a8"
         self.metadata = {}
         self.metadata["Core Data"] = {}
         self.metadata["Core Data"]["Title"] = ""
@@ -48,7 +56,7 @@ class Spectrum:
         self.metadata["Spectral Parameters"]["Resolution"] = ""
         self.metadata["Spectral Parameters"]["Delta X"] = ""
         self.metadata["Notes"] = {}
-        self.metadata["Notes"]["Date Time"] = ""
+        self.metadata["Notes"]["Date Time"] = datetime.datetime.now()
         self.metadata["Notes"]["Source Reference"] = ""
         self.metadata["Notes"]["Cross Reference"] = ""
         self.metadata["Sample Information"] = {}
@@ -294,13 +302,19 @@ class Spectrum:
                     elif label == "$YLIM":
                         self.displayData['ylim'] = json.loads(data)
                     elif label == "$LEGEND":
-                        self.displayData['Legend'] = data
+                        self.displayData['Legend'] = data.replace("\r\n", "")
                     elif label == "$COLOR":
-                        self.color = data
+                        self.color = data.replace("\r\n", "")
                     elif label == "$LINE STYLE":
-                        self.lineStyle = data
+                        self.lineStyle = data.replace("\r\n", "")
                     elif label == "$MARKER STYLE":
-                        self.markerStyle = data
+                        self.markerStyle = data.replace("\r\n", "")
+                    elif label == "$PEAK LIST":
+                        self.peaks = np.array(json.loads(data.replace("\r\n", "")))
+                    elif label == "$PEAK STRING":
+                        self.peakString = data
+                    elif label == "$PEAK PARAMETER":
+                        self.peakParameter = json.loads(data.replace("\r\n", ""))
                     else: 
                         self.metadata["Comments"] += "\r\n" + data
                 else:
@@ -325,6 +339,9 @@ class Spectrum:
         c += checkLength("\r\n##$COLOR=" + self.color)
         c += checkLength("\r\n##$LINE STYLE=" + self.lineStyle)
         c += checkLength("\r\n##$MARKER STYLE=" + self.markerStyle)
+        c += checkLength("\r\n##$PEAK PARAMETER=" + json.dumps(self.peakParameter))
+        c += checkLength("\r\n##$PEAK STRING=" + self.peakString)
+        c += checkLength("\r\n##$PEAK LIST=" + json.dumps(list(self.peaks), default=int))
         c += checkLength("\r\n##XUNITS=" + self.metadata["Spectral Parameters"]["X Units"])
         c += checkLength("\r\n##YUNITS=" + self.metadata["Spectral Parameters"]["Y Units"])
         c += checkLength("\r\n##MAXX=" + str(max(self.x)))
@@ -441,7 +458,6 @@ class Spectrum:
             peakStringList.append(str(round(peaksX[i], 1)) + " (" + relHeight + ")")
         self.peakString = ", ".join(peakStringList)
         return self.peakString
-                
 
 def getJCAMPblockFromFile(fileName):
     blocks = []
@@ -492,7 +508,8 @@ def checkLength(s):
     if len(s) < 80:
         return s
     lines = s.splitlines()
-    if len(lines) > 0:
+    print(lines)
+    if len(lines) > 1:
         r = ""
         for l in lines:
             r += checkLength(l) + "\r\n"
