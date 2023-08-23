@@ -251,6 +251,8 @@ class specplot(FigureCanvas):
         xlabel = self.ax.get_xlabel()
         ylabel = self.ax.get_ylabel()
         self.ax.figure.clear()
+        if hasattr(self, 'ax2'):
+            del self.ax2
         self.ax = self.canvas.figure.subplots()
         self.ax.set_xlim(xlim)
         self.ax.set_ylim(ylim)
@@ -259,7 +261,7 @@ class specplot(FigureCanvas):
         for spec in self.spectraData:
             if spec.yaxis > 0:
                 if not hasattr(self, 'ax2'):
-                    self.ax2 = self.ax1.twinx()
+                    self.ax2 = self.ax.twinx()
                     self.ax2.set_ylabel("derivative")
                 self.ax2.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
                 if len(spec.peaks) > 0:
@@ -273,7 +275,5 @@ class specplot(FigureCanvas):
         if self.legend != "":
             self.ax.legend(loc=self.legend)
         self.ax.figure.canvas.draw_idle()
-        if hasattr(self, 'ax2'):
-            self.ax2.figure.canvas.draw_idle()
         self.plotChanged.emit()
             
