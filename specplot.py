@@ -36,6 +36,7 @@ class specplot(FigureCanvas):
         self.XUnit = ""
         self.YUnit = ""
         self.legend = ""
+        self.selectionMode = "ZoomMode"
         
         
         # events
@@ -44,9 +45,13 @@ class specplot(FigureCanvas):
         self.plotKeyDown = self.canvas.mpl_connect('button_press_event', self.on_button_down)
         self.plotKeyUp = self.canvas.mpl_connect('button_release_event', self.on_button_up)
         
-        # variables used in event handling
+        # variables used in event handling -> Zooming
         self.zoomXButtonStart = None # where was the first click for the X-Zoom
         self.zoomrect = None # holds the rect of the zoom region (pale blue region on zooming)
+        
+        # variables used in event handling -> Integration
+        self.integralXButtonStart = None # where was the first click for the integration range
+        self.integralrect = None # holds the rect of the integration region (pale green)
         
         self.spectraData = []
         self.spectraLines = []
@@ -66,6 +71,9 @@ class specplot(FigureCanvas):
         self.positionChanged.emit(round(event.xdata, 2), round(event.ydata, 2))
         if self.zoomXButtonStart:
             self.zoomrect.set(width=event.xdata- self.zoomXButtonStart)
+            self.ax.figure.canvas.draw_idle() # self.canvas cannot be accessed properly, so got this way to use it
+        elif self.integralXButtonStart:
+            self.integralrect.set(width=event.xdata- self.integralXButtonStart)
             self.ax.figure.canvas.draw_idle() # self.canvas cannot be accessed properly, so got this way to use it
     
     def on_scroll(self, event):
@@ -124,9 +132,13 @@ class specplot(FigureCanvas):
                 self.zoomrect = None
             self.ax.figure.canvas.draw_idle()
             self.plotChanged.emit()
-        elif event.button == 1: # start the x zooming
-            self.zoomXButtonStart = event.xdata
-            self.zoomrect = self.ax.add_patch(Rectangle((self.zoomXButtonStart, self.fullYlim[0]), 0, (self.fullYlim[1]-self.fullYlim[0]), alpha=0.2, color="red"))
+        elif event.button == 1: # start the x zooming or integration
+            if self.selectionMode == "ZoomMode":
+                self.zoomXButtonStart = event.xdata
+                self.zoomrect = self.ax.add_patch(Rectangle((self.zoomXButtonStart, self.fullYlim[0]), 0, (self.fullYlim[1]-self.fullYlim[0]), alpha=0.2, color="red"))
+            elif self.selectionMode == "IntegrationMode":
+                self.integralXButtonStart = event.xdata
+                self.integralrect = self.ax.add_patch(Rectangle((self.integralXButtonStart, self.fullYlim[0]), 0, (self.fullYlim[1]-self.fullYlim[0]), alpha=0.2, color="green"))
             self.ax.figure.canvas.draw_idle()
         
     def on_button_up(self, event):
@@ -141,10 +153,16 @@ class specplot(FigureCanvas):
             self.zoomrect.remove()
             self.zoomrect = None
             self.ax.figure.canvas.draw_idle()
-        elif event.button == 1 and self.zoomXButtonStart == event.xdata: # start and stop at the same position -> do nothing but reset
+        elif event.button == 1 and self.zoomXButtonStart == event.xdata : # start and stop at the same position -> do nothing but reset
             self.zoomXButtonStart = None
             self.zoomrect.remove()
             self.zoomrect = None
+            self.ax.figure.canvas.draw_idle()
+            self.plotChanged.emit()
+        elif event.button == 1 and self.integralXButtonStart == event.xdata : # start and stop at the same position -> do nothing but reset
+            self.integralXButtonStart = None
+            self.integralrect.remove()
+            self.integralrect = None
             self.ax.figure.canvas.draw_idle()
             self.plotChanged.emit()
         elif event.button == 1 and self.zoomXButtonStart != None and self.zoomXButtonStart != event.xdata: # stop position other than start position -> do the zoom
@@ -156,6 +174,12 @@ class specplot(FigureCanvas):
             self.zoomXButtonStart = None
             self.zoomrect.remove()
             self.zoomrect = None
+            self.ax.figure.canvas.draw_idle()
+            self.plotChanged.emit()
+        elif event.button == 1 and self.integralXButtonStart != None and self.integralXButtonStart != event.xdata: # stop position other than start position -> do the integration
+            self.integralXButtonStart = None
+            self.integralrect.remove()
+            self.integralrect = None
             self.ax.figure.canvas.draw_idle()
             self.plotChanged.emit()
     

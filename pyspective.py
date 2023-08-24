@@ -11,8 +11,8 @@ import os
 import re
 
 from PyQt6 import QtCore, QtGui
-from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QColor
-from PyQt6.QtCore import QDir, Qt, QSize
+from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QColor, QActionGroup
+from PyQt6.QtCore import QDir, Qt, QSize, QSettings
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -55,18 +55,18 @@ class ApplicationWindow(QMainWindow):
         self.createMainWidgets()
         
         self.documents = []
-        self.currentDocumentIndex = None
-        self.currentPageIndex = None
-        self.currentSpectrumIndex = None
+        self.currentDocumentIndex = -1
+        self.currentPageIndex = -1
+        self.currentSpectrumIndex = -1
+        self.currentMode = "ZoomMode"
         
         # settings
         self.settings = QtCore.QSettings('TUBAF', 'pySpective')
         if self.settings.value("geometry"):
             self.restoreGeometry(self.settings.value("geometry"))
-        if self.settings.value("state"):
-            self.restoreState(self.settings.value("state"))
-        if self.settings.value("metadataDockGeometry"):
-            self.metadataDock.restoreGeometry(self.settings.value("metadataDockGeometry"))
+        if self.settings.value("windowState"):
+            self.restoreState(self.settings.value("windowState"))
+
         
         # init checkable actions
         self.metadataDockAction.setChecked(not self.metadataDock.isHidden())
@@ -74,10 +74,10 @@ class ApplicationWindow(QMainWindow):
         self.spectraDockAction.setChecked(not self.spectraDock.isHidden())
     
     def closeEvent(self, evt):
-        self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("windowState", self.saveState())
-        self.settings.setValue("metadataDockGeometry", self.metadataDock.saveGeometry())
+        self.settings.setValue("geometry", QtCore.QVariant(self.saveGeometry()))
+        self.settings.setValue("windowState", QtCore.QVariant(self.saveState()))
         super(ApplicationWindow, self).closeEvent(evt)
+        self.close()
         
     def createMainWidgets(self):
         # create Toolbar and Statusbar
@@ -91,6 +91,8 @@ class ApplicationWindow(QMainWindow):
         self.toolBar.addAction(self.metadataDockAction)
         self.toolBar.addAction(self.peakpickingDockAction)
         self.toolBar.addAction(self.calculateDerivativeAction)
+        self.toolBar.addAction(self.zoomAction)
+        self.toolBar.addAction(self.integrationAction)
         
         self.statusBar = self.statusBar()
         
@@ -100,8 +102,8 @@ class ApplicationWindow(QMainWindow):
         self.metadataDock.visibilityChanged.connect(lambda show: self.metadataDockAction.setChecked(show))
         self.metadataDock.dataChanged.connect(self.updateMetadata)
         
-        self.pageDock = QDockWidget(self.tr("Pages"), self)
-        self.pageDock.setObjectName("pagesDock")
+        self.pageDock = QDockWidget(self.tr("pages"), self)
+        self.pageDock.setObjectName("Dock of Pages")
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pageDock)
         self.pageDock.visibilityChanged.connect(lambda show: self.pageDockAction.setChecked(show))
         self.pageView = spectiveview.pageView()
@@ -131,7 +133,6 @@ class ApplicationWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.peakpickingDock)
         self.peakpickingDock.visibilityChanged.connect(lambda show: self.peakpickingDockAction.setChecked(show))
         self.peakpickingDock.peaksChanged.connect(self.updatePlot)
-        #self.peakpickingDock.hide()
         
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
@@ -179,6 +180,17 @@ class ApplicationWindow(QMainWindow):
         self.pageEditAction.triggered.connect(self.pageEdit)
         self.pageEditAction.setEnabled(False)
         
+        self.zoomAction = QAction(self.tr('Zoom Mode'))
+        self.zoomAction.setCheckable(True)
+        self.zoomAction.setChecked(True)
+        self.integrationAction = QAction(self.tr('Integration Mode'))
+        self.integrationAction.setCheckable(True)
+        
+        self.modeActionGroup = QActionGroup(self)
+        self.modeActionGroup.triggered.connect(self.changeMode)
+        self.modeActionGroup.addAction(self.zoomAction)
+        self.modeActionGroup.addAction(self.integrationAction)
+        
         self.saveDocumentAction = QAction(self.tr('&Save Document as JCAMP-DX'))
         self.saveDocumentAction.setIcon(QIcon.fromTheme("document-save", QIcon("icons/document-save.svg")))
         self.saveDocumentAction.setShortcut(QKeySequence("Ctrl+S"))
@@ -187,6 +199,7 @@ class ApplicationWindow(QMainWindow):
         
         self.calculateDerivativeAction = QAction(self.tr("Calculate Derivative"))
         self.calculateDerivativeAction.triggered.connect(self.calculateDerivative)
+        self.calculateDerivativeAction.setEnabled(False)
         
     def createMenuBar(self):
         self.menuBar = self.menuBar()
@@ -229,6 +242,7 @@ class ApplicationWindow(QMainWindow):
         self.documentTitleAction.setEnabled(True)
         self.savePageAction.setEnabled(True)
         self.saveSpectrumAction.setEnabled(True)
+        self.calculateDerivativeAction.setEnabled(True)
         
     def openFile(self):
         dgl = opendialog.openDialog(self)
@@ -355,6 +369,30 @@ class ApplicationWindow(QMainWindow):
                     fileName += m.group(1)
                 w = self._mainWidget.currentWidget()
                 w.figure.savefig(fileName, dpi=data["dpi"])
+    
+    def changeMode(self, a):
+        if a == self.zoomAction:
+            self.currentMode = "ZoomMode"
+            
+        elif a == self.integrationAction:
+            self.currentMode = "IntegrationMode"
+            
+        if self.currentDocumentIndex < len(self.documents) and self.currentDocumentIndex >= 0:
+            document = self.documents[self.currentDocumentIndex]
+            document.setMode(self.currentMode)
+    
+    def keyPressEvent(self, evt):
+        if evt.key() == Qt.Key.Key_Shift:
+            self.integrationAction.trigger()
+        
+        super(ApplicationWindow, self).keyPressEvent(evt)
+        
+    
+    def keyReleaseEvent(self, evt):
+        if evt.key() == Qt.Key.Key_Shift:
+            self.zoomAction.trigger()
+            
+        super(ApplicationWindow, self).keyReleaseEvent(evt)
     
     def showPositionInStatusBar(self, x, y):
         self.statusBar.showMessage(f"Position: {x}, {y}")
@@ -565,6 +603,7 @@ class ApplicationWindow(QMainWindow):
         self.currentSpectrumIndex = index
         document = self.documents[self.currentDocumentIndex]
         page = document.pages[self.currentPageIndex]
+        page.setCurrentSpectrum(index)
         spectrum = page.spectra[index]
         self.metadataDock.dataChanged.disconnect()
         self.metadataDock.setData(spectrum.metadata)
@@ -591,6 +630,7 @@ class ApplicationWindow(QMainWindow):
         spec = spectrum.calculateDerivative()
         page.addSpectrum(spec)
         self.showSpectraInDock()
+            
                 
 if __name__ == "__main__":
     qapp = QApplication(sys.argv)

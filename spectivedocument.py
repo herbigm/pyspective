@@ -155,7 +155,11 @@ class spectiveDocument(QWidget):
         return page.getFigureData()
     
     def setFigureData(self, data):
-        self.pages[self.currentPageIndex].setFigureData(data)        
+        self.pages[self.currentPageIndex].setFigureData(data)     
+    
+    def setMode(self, mode):
+        for p in  self.pages:
+            p.setMode(mode)
         
 
 class spectivePlotPage(QWidget):
@@ -170,6 +174,7 @@ class spectivePlotPage(QWidget):
         self.spectra = []
         self.title = ""
         self.plotTitle = ""
+        self.currentSpectrumIndex = None
         
     def addSpectrum(self, spectrum):
         self.spectra.append(spectrum)
@@ -189,6 +194,7 @@ class spectivePlotPage(QWidget):
             self.plotWidget.ax.set_ylim(spectrum.displayData['ylim'])
         if spectrum.displayData['Legend']:
             self.plotWidget.legend = spectrum.displayData['Legend']
+        self.currentSpectrumIndex = len(self.spectra) - 1
         self.plotWidget.updatePlot()
     
     def getFigureData(self):
@@ -264,3 +270,10 @@ class spectivePlotPage(QWidget):
             return None
         else:
             return row
+    
+    def setMode(self, mode):
+        self.plotWidget.selectionMode = mode
+    
+    def setCurrentSpectrum(self, index):
+        self.currentSpectrumIndex = index
+        self.plotWidget.currentSpectrumIndex = index

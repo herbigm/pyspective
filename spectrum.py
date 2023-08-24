@@ -315,6 +315,8 @@ class Spectrum:
                         self.peakString = data
                     elif label == "$PEAK PARAMETER":
                         self.peakParameter = json.loads(data.replace("\r\n", ""))
+                    elif label == "$YAXIS":
+                        self.yaxis = int(data)
                     else: 
                         self.metadata["Comments"] += "\r\n" + data
                 else:
@@ -340,6 +342,8 @@ class Spectrum:
         c += checkLength("\r\n##$LINE STYLE=" + self.lineStyle)
         c += checkLength("\r\n##$MARKER STYLE=" + self.markerStyle)
         c += checkLength("\r\n##$PEAK PARAMETER=" + json.dumps(self.peakParameter))
+        if self.yaxis > 0:
+            c += checkLength("\r\n##$YAXIS=" + str(self.yaxis))
         c += checkLength("\r\n##$PEAK STRING=" + self.peakString)
         c += checkLength("\r\n##$PEAK LIST=" + json.dumps(list(self.peaks), default=int))
         c += checkLength("\r\n##XUNITS=" + self.metadata["Spectral Parameters"]["X Units"])
