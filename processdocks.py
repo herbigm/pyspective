@@ -10,6 +10,8 @@ from PyQt6 import QtCore, QtGui
 from PyQt6.QtGui import QAction, QIcon, QPixmap, QColor
 from PyQt6.QtCore import pyqtSignal, QDir, Qt, QDateTime, QSize
 from PyQt6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
     QDockWidget,
     QFormLayout,
     QVBoxLayout,
@@ -24,6 +26,11 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QColorDialog,
+    QTableWidget,
+    QTableWidgetItem,
+    QAbstractItemView,
+    QInputDialog,
+    QMenu,
 )
 
 class peakpickingDock(QDockWidget):
@@ -138,6 +145,151 @@ class peakpickingDock(QDockWidget):
     
     def chooseColor(self):
         dgl = QColorDialog(QColor.fromString(self.color), self)
+        if dgl.exec():
+            color = dgl.currentColor()
+            pix = QPixmap(QSize(32,32))
+            pix.fill(color)
+            self.colorButton.setIcon(QIcon(pix))
+            self.colorButton.setText(color.name())
+            self.color = color.name()
+
+
+
+class integralDock(QDockWidget):
+    integralsChanged = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super(integralDock, self).__init__(self.tr("Integrals"),parent=parent)
+        
+        self.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+        
+        self.mainWidget = QWidget()
+        self.mainLayout = QVBoxLayout()
+        self.mainWidget.setLayout(self.mainLayout)
+        self.setWidget(self.mainWidget)
+        
+        self.spectrum = None
+        
+        self.integralSumButton = QPushButton(self.tr("Change Sum of Integrals"))
+        self.integralSumButton.clicked.connect(self.setIngetralSum)
+        self.integralSumButton.setEnabled(False)
+        self.mainLayout.addWidget(self.integralSumButton)
+        
+        self.table = QTableWidget(self)
+        self.mainLayout.addWidget(self.table)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Start", "End", "Area", "rel. Area", "Color"])
+        self.table.verticalHeader().hide()
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.itemDoubleClicked.connect(lambda item: self.editIntegral(self.table.row(item)))
+        self.table.customContextMenuRequested.connect(self.tableContextMenu)
+    
+    def setIngetralSum(self):
+        if not self.spectrum:
+            return
+        integralSum, ok = QInputDialog.getDouble(self, self.tr("Enter Sum of all Integrals of this spectrum"), "Σ =", value=100.0, min=0.0, decimals=3)
+        if ok:
+            self.spectrum.setIntegralSum(integralSum)
+            self.integralsChanged.emit()
+    
+    def setSpectrum(self, spec):
+        self.spectrum = spec
+        if len(spec.integrals) > 0:
+            self.integralSumButton.setEnabled(True)
+        else:
+            self.integralSumButton.setEnabled(False)
+        self.table.clear()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Start", "End", "Area", "rel. Area", "Color"])
+        self.table.verticalHeader().hide()
+        self.table.setRowCount(len(spec.integrals))
+        for row in range(len(spec.integrals)):
+            self.table.setItem(row, 0, QTableWidgetItem(str(round(spec.integrals[row]['x1'], 3))))
+            self.table.setItem(row, 1, QTableWidgetItem(str(round(spec.integrals[row]['x2'], 3))))
+            self.table.setItem(row, 2, QTableWidgetItem(str(round(spec.integrals[row]['area'], 3))))
+            self.table.setItem(row, 3, QTableWidgetItem(str(round(spec.integrals[row]['relativeArea'], 3))))
+            color = QColor.fromString(spec.integrals[row]['color'])
+            pix = QPixmap(QSize(32,32))
+            pix.fill(color)
+            self.table.setItem(row, 4, QTableWidgetItem(QIcon(pix), spec.integrals[row]['color'], 3))
+    
+    def tableContextMenu(self, pos):
+        item = self.table.itemAt(pos)
+        if item:
+            row = item.row()
+            menu = QMenu(self)
+            editAction = QAction(self.tr("Edit Integral"))
+            deleteAction = QAction(self.tr("Delete Integral"))
+            menu.addAction(editAction)
+            menu.addAction(deleteAction)
+            
+            action = menu.exec(self.table.mapToGlobal(pos))
+            if action == editAction:
+                self.editIntegral(row)
+            elif action == deleteAction:
+                del self.spectrum.integrals[row]
+                self.integralsChanged.emit()
+                
+    def editIntegral(self, row):
+        dgl = integralDialog(self)
+        dgl.setData(self.spectrum.integrals[row])
+        if dgl.exec():
+            data = dgl.getData()
+            self.spectrum.updateIntegral(row, data)
+            self.integralsChanged.emit()
+
+class integralDialog(QDialog):
+    def __init__(self, parent=None):
+        super(integralDialog, self).__init__(parent)
+        self.setWindowTitle("Integral Options")
+                
+        Buttons = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        self.buttonBox = QDialogButtonBox(Buttons)
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        self.layout = QFormLayout()
+        
+        self.startEdit = QLineEdit(self)
+        self.endEdit = QLineEdit(self)
+        self.relAreaEdit = QLineEdit(self)
+        pix = QPixmap(QSize(32,32))
+        pix.fill(QColor.fromString("#000000"))
+        self.colorButton = QPushButton(QIcon(pix), "#000000")
+        self.colorButton.clicked.connect(self.chooseColor)
+        
+        self.layout.addRow(self.tr("Start"), self.startEdit)
+        self.layout.addRow(self.tr("End"), self.endEdit)
+        self.layout.addRow(self.tr("rel. Area"), self.relAreaEdit)
+        self.layout.addRow(self.tr("Color"), self.colorButton)
+                
+        self.layout.addWidget(self.buttonBox)
+        self.setLayout(self.layout)
+
+  
+    def getData(self):
+        data = {}
+        data['x1'] = float(self.startEdit.text().replace(",", "."))
+        data['x2'] = float(self.endEdit.text().replace(",", "."))
+        data['relativeArea'] = float(self.relAreaEdit.text().replace(",", "."))
+        data['color'] = self.color
+        return data
+    
+    def setData(self, data):
+        self.startEdit.setText(str(data['x1']))
+        self.endEdit.setText(str(data['x2']))
+        self.relAreaEdit.setText(str(data['relativeArea']))
+        pix = QPixmap(QSize(32,32))
+        pix.fill(QColor.fromString(data['color']))
+        self.colorButton.setIcon(QIcon(pix))
+        self.colorButton.setText(data['color'])
+        self.color = data['color']
+    
+    def chooseColor(self):
+        dgl = QColorDialog(self)
+        dgl.setCurrentColor(QColor.fromString(self.color))
         if dgl.exec():
             color = dgl.currentColor()
             pix = QPixmap(QSize(32,32))

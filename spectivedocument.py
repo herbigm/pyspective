@@ -166,6 +166,7 @@ class spectivePlotPage(QWidget):
     def __init__(self, parent = None):
         super(spectivePlotPage, self).__init__(parent)
         self.plotWidget = specplot.specplot(self)
+        self.plotWidget.gotIntegrationRange.connect(self.doIntegration)
         self.layout = QVBoxLayout(self)
         
         self.layout.addWidget(self.plotWidget)
@@ -277,3 +278,7 @@ class spectivePlotPage(QWidget):
     def setCurrentSpectrum(self, index):
         self.currentSpectrumIndex = index
         self.plotWidget.currentSpectrumIndex = index
+    
+    def doIntegration(self, x1, x2):
+        self.spectra[self.currentSpectrumIndex].integrate(x1, x2)
+        self.updatePlot()

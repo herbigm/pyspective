@@ -16,7 +16,7 @@ matplotlib.use('QtAgg')
 from matplotlib.backends.backend_qtagg import FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.backend_bases import MouseButton
-from matplotlib.patches import Rectangle
+from matplotlib.patches import Rectangle, Polygon
 
 import numpy as np
 
@@ -24,6 +24,7 @@ class specplot(FigureCanvas):
     #Signals
     positionChanged = pyqtSignal(float, float)
     plotChanged = pyqtSignal()
+    gotIntegrationRange = pyqtSignal(float, float)
     
     def __init__(self, parent = None):        
         self.parent = parent
@@ -177,6 +178,7 @@ class specplot(FigureCanvas):
             self.ax.figure.canvas.draw_idle()
             self.plotChanged.emit()
         elif event.button == 1 and self.integralXButtonStart != None and self.integralXButtonStart != event.xdata: # stop position other than start position -> do the integration
+            self.gotIntegrationRange.emit(self.integralXButtonStart, event.xdata)
             self.integralXButtonStart = None
             self.integralrect.remove()
             self.integralrect = None
@@ -294,6 +296,11 @@ class specplot(FigureCanvas):
                 self.ax.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
                 if len(spec.peaks) > 0:
                     self.ax.plot(spec.x[spec.peaks], spec.y[spec.peaks], "+", color=spec.peakParameter['Color'], label="_Hidden")
+                for i in spec.integrals:
+                    x1, x2 = spec.getIntegrationRangeByIndex(i['x1'], i['x2'])
+                    poly = Polygon([*zip(spec.x[x1:x2], spec.y[x1:x2])], color=i['color'])
+                    self.ax.add_patch(poly)
+
         if self.supTitle != "":
             self.ax.figure.suptitle(self.supTitle)
         if self.legend != "":

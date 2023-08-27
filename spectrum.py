@@ -44,6 +44,7 @@ class Spectrum:
         self.peakParameter["Prominence"] = ""
         self.peakParameter["Width"] = ""
         self.peakParameter["Color"] = "#0064a8"
+        self.integrals = []
         self.metadata = {}
         self.metadata["Core Data"] = {}
         self.metadata["Core Data"]["Title"] = ""
@@ -315,6 +316,8 @@ class Spectrum:
                         self.peakString = data
                     elif label == "$PEAK PARAMETER":
                         self.peakParameter = json.loads(data.replace("\r\n", ""))
+                    elif label == "$INTEGRALS":
+                        self.integrals = json.loads(data.replace("\r\n", ""))
                     elif label == "$YAXIS":
                         self.yaxis = int(data)
                     else: 
@@ -346,6 +349,8 @@ class Spectrum:
             c += checkLength("\r\n##$YAXIS=" + str(self.yaxis))
         c += checkLength("\r\n##$PEAK STRING=" + self.peakString)
         c += checkLength("\r\n##$PEAK LIST=" + json.dumps(list(self.peaks), default=int))
+        if len(self.integrals) > 0:
+            c += checkLength("\r\n##$INTEGRALS=" + json.dumps(list(self.integrals), default=float))
         c += checkLength("\r\n##XUNITS=" + self.metadata["Spectral Parameters"]["X Units"])
         c += checkLength("\r\n##YUNITS=" + self.metadata["Spectral Parameters"]["Y Units"])
         c += checkLength("\r\n##MAXX=" + str(max(self.x)))
@@ -462,6 +467,55 @@ class Spectrum:
             peakStringList.append(str(round(peaksX[i], 1)) + " (" + relHeight + ")")
         self.peakString = ", ".join(peakStringList)
         return self.peakString
+    
+    def integrate(self, x1, x2):
+        idx1, idx2 = self.getIntegrationRangeByIndex(x1, x2)
+        integral = np.abs(np.trapz(self.y[idx1:idx2], x=self.x[idx1:idx2]))
+        baseintegral = np.abs(np.trapz([self.y[idx1], self.y[idx2]], x = [self.x[idx1], self.x[idx2]]))
+        itg = {}
+        itg['x1'] = x1
+        itg['x2'] = x2
+        itg['area'] = np.abs(integral - baseintegral)
+        if len(self.integrals) == 0:
+            itg['relativeArea'] = 1
+        else:
+            itg['relativeArea'] = itg['area'] * self.integrals[0]['relativeArea'] / self.integrals[0]['area']
+        itg['color'] = self.color
+        self.integrals.append(itg)
+    
+    def getIntegrationRangeByIndex(self, x1, x2):
+        xx1 = np.abs(self.x - x1)
+        xx2 = np.abs(self.x - x2)
+        x1idx = np.argmin(xx1)
+        x2idx = np.argmin(xx2)
+        
+        if x1idx > x2idx:
+            x1idx, x2idx = x2idx, x1idx
+        return x1idx, x2idx
+    
+    def setIntegralSum(self, s):
+        wholeArea = 0
+        for i in self.integrals:
+            wholeArea += i['area']
+        for i in self.integrals:
+            i['relativeArea'] = s*i['area']/wholeArea
+    
+    def updateIntegral(self, idx, data):
+        itg = self.integrals[idx]
+        itg['x1'] = data['x1']
+        itg['x2'] = data['x2']
+        
+        idx1, idx2 = self.getIntegrationRangeByIndex(data['x1'], data['x2'])
+        integral = np.abs(np.trapz(self.y[idx1:idx2], x=self.x[idx1:idx2]))
+        baseintegral = np.abs(np.trapz([self.y[idx1], self.y[idx2]], x = [self.x[idx1], self.x[idx2]]))
+        
+        itg['area'] = np.abs(integral - baseintegral)
+        itg['relativeArea'] = data['relativeArea']
+        itg['color'] = data['color']
+        
+        for i in self.integrals:
+            if i != itg:
+                i['relativeArea'] = i['area'] * itg['relativeArea'] / itg['area']
 
 def getJCAMPblockFromFile(fileName):
     blocks = []

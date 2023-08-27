@@ -97,12 +97,14 @@ class ApplicationWindow(QMainWindow):
         self.statusBar = self.statusBar()
         
         self.metadataDock = metadatadock.metadataDock(self)
+        self.metadataDock.setWindowIcon(QIcon("icons/Metadata.png"))
         self.metadataDock.setObjectName("metaDataDock")
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.metadataDock)
         self.metadataDock.visibilityChanged.connect(lambda show: self.metadataDockAction.setChecked(show))
         self.metadataDock.dataChanged.connect(self.updateMetadata)
         
         self.pageDock = QDockWidget(self.tr("pages"), self)
+        self.pageDock.setWindowIcon(QIcon("icons/Pages.png"))
         self.pageDock.setObjectName("Dock of Pages")
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.pageDock)
         self.pageDock.visibilityChanged.connect(lambda show: self.pageDockAction.setChecked(show))
@@ -116,6 +118,7 @@ class ApplicationWindow(QMainWindow):
         self.pageView.pageDeleteRequest.connect(self.pageDelete)
         
         self.spectraDock = QDockWidget(self.tr("Spectra"), self)
+        self.spectraDock.setWindowIcon(QIcon("icons/Spectra.png"))
         self.spectraDock.setObjectName("spectraDock")
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.spectraDock)
         self.spectraDock.visibilityChanged.connect(lambda show: self.spectraDockAction.setChecked(show))
@@ -129,18 +132,26 @@ class ApplicationWindow(QMainWindow):
         self.spectraList.spectrumDeleteRequest.connect(self.spectrumDelete)
         
         self.peakpickingDock = processdocks.peakpickingDock(self)
+        self.peakpickingDock.setWindowIcon(QIcon("icons/Peakpicking.png"))
         self.peakpickingDock.setObjectName("PeakPickingDock")
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.peakpickingDock)
         self.peakpickingDock.visibilityChanged.connect(lambda show: self.peakpickingDockAction.setChecked(show))
         self.peakpickingDock.peaksChanged.connect(self.updatePlot)
         
+        self.integralDock = processdocks.integralDock(self)
+        self.integralDock.setWindowIcon(QIcon("icons/Integration.png"))
+        self.integralDock.setObjectName("IntegralDock")
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.integralDock)
+        self.integralDock.visibilityChanged.connect(lambda show: self.integralDockAction.setChecked(show))
+        self.integralDock.integralsChanged.connect(self.updatePlot)
+        
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
-        self.closeAction.setIcon(QIcon.fromTheme("application-exit", QIcon("icons/application-exit.avg")))
+        self.closeAction.setIcon(QIcon.fromTheme("application-exit", QIcon("icons/application-exit.svg")))
         self.closeAction.triggered.connect(self.close)
         
         self.openAction = QAction(self.tr('Open Spectrum'))
-        self.openAction.setIcon(QIcon.fromTheme("document-open", QIcon("icons/document-open.svg")))
+        self.openAction.setIcon(QIcon("icons/Open.png"))
         self.openAction.triggered.connect(self.openFile)
         
         self.documentTitleAction = QAction(self.tr("Edit Document Title"))
@@ -156,34 +167,46 @@ class ApplicationWindow(QMainWindow):
         self.saveSpectrumAction.triggered.connect(self.saveSpectrum)
         
         self.saveImageAction = QAction(self.tr('Export Current View to Image File'))
-        self.saveImageAction.setIcon(QIcon.fromTheme("image-png", QIcon("icons/image-png.svg")))
+        self.saveImageAction.setIcon(QIcon("icons/Image.png"))
         self.saveImageAction.triggered.connect(self.saveImage)
         self.saveImageAction.setEnabled(False)
         
         self.metadataDockAction = QAction(self.tr('Show and Edit Metadata'))
+        self.metadataDockAction.setIcon(QIcon("icons/Metadata.png"))
         self.metadataDockAction.setCheckable(True)
         self.metadataDockAction.triggered.connect(self.showMetadataDock)
         
         self.pageDockAction = QAction(self.tr('Show Page Dock'))
+        self.pageDockAction.setIcon(QIcon("icons/Pages.png"))
         self.pageDockAction.setCheckable(True)
         self.pageDockAction.triggered.connect(self.showPageDock)
         
         self.spectraDockAction = QAction(self.tr('Show Spectra Dock'))
+        self.spectraDockAction.setIcon(QIcon("icons/Spectra.png"))
         self.spectraDockAction.setCheckable(True)
         self.spectraDockAction.triggered.connect(self.showSpectraDock)
         
         self.peakpickingDockAction = QAction(self.tr('Show Peakpicking Dock'))
+        self.peakpickingDockAction.setIcon(QIcon("icons/Peakpicking.png"))
         self.peakpickingDockAction.setCheckable(True)
         self.peakpickingDockAction.triggered.connect(self.showPeakpickingDock)
         
+        self.integralDockAction = QAction(self.tr('Show Integrals Dock'))
+        self.integralDockAction.setIcon(QIcon("icons/Integration.png"))
+        self.integralDockAction.setCheckable(True)
+        self.integralDockAction.triggered.connect(self.showIntegralDock)
+        
         self.pageEditAction = QAction(self.tr('Edit Page'))
+        self.pageEditAction.setIcon(QIcon("icons/Edit.png"))
         self.pageEditAction.triggered.connect(self.pageEdit)
         self.pageEditAction.setEnabled(False)
         
         self.zoomAction = QAction(self.tr('Zoom Mode'))
+        self.zoomAction.setIcon(QIcon("icons/Zoom.png"))
         self.zoomAction.setCheckable(True)
         self.zoomAction.setChecked(True)
         self.integrationAction = QAction(self.tr('Integration Mode'))
+        self.integrationAction.setIcon(QIcon("icons/Integration.png"))
         self.integrationAction.setCheckable(True)
         
         self.modeActionGroup = QActionGroup(self)
@@ -192,12 +215,13 @@ class ApplicationWindow(QMainWindow):
         self.modeActionGroup.addAction(self.integrationAction)
         
         self.saveDocumentAction = QAction(self.tr('&Save Document as JCAMP-DX'))
-        self.saveDocumentAction.setIcon(QIcon.fromTheme("document-save", QIcon("icons/document-save.svg")))
+        self.saveDocumentAction.setIcon(QIcon("icons/Save.png"))
         self.saveDocumentAction.setShortcut(QKeySequence("Ctrl+S"))
         self.saveDocumentAction.setEnabled(False)
         self.saveDocumentAction.triggered.connect(self.saveFile)
         
         self.calculateDerivativeAction = QAction(self.tr("Calculate Derivative"))
+        self.calculateDerivativeAction.setIcon(QIcon("icons/Derivative.png"))
         self.calculateDerivativeAction.triggered.connect(self.calculateDerivative)
         self.calculateDerivativeAction.setEnabled(False)
         
@@ -420,6 +444,12 @@ class ApplicationWindow(QMainWindow):
             self.peakpickingDock.show()
         else: 
             self.peakpickingDock.hide()
+            
+    def showIntegralDock(self, show):
+        if show:
+            self.integralDock.show()
+        else: 
+            self.integralDock.hide()
 
     def saveFile(self):
         if not self.documents[self.currentDocumentIndex].fileName:
@@ -446,6 +476,7 @@ class ApplicationWindow(QMainWindow):
             self.pageView.addItem(newItem)
         self.pageView.setCurrentRow(self.currentPageIndex)
         self.pageView.currentRowChanged.connect(self.pageChanged)
+        self.integralDock.setSpectrum(page.spectra[self.currentSpectrumIndex])
     
     def showSpectraInDock(self):
         if self.currentDocumentIndex >= len(self.documents) or self.currentDocumentIndex < 0:
@@ -609,6 +640,7 @@ class ApplicationWindow(QMainWindow):
         self.metadataDock.setData(spectrum.metadata)
         self.metadataDock.dataChanged.connect(self.updateMetadata)
         self.peakpickingDock.setSpectrum(spectrum)
+        self.integralDock.setSpectrum(page.spectra[self.currentSpectrumIndex])
     
     def updateMetadata(self, data):
         document = self.documents[self.currentDocumentIndex]
