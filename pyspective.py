@@ -44,7 +44,8 @@ import processdocks
 class ApplicationWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Pyspective")
+        self.setWindowTitle("PySpective")
+        self.setWindowIcon(QIcon("icons/Logo.svg"))
         self._mainWidget = QTabWidget(self)
         self._mainWidget.currentChanged.connect(self.documentChanged)
         self._mainWidget.tabCloseRequested.connect(self.closeDocument)
@@ -251,6 +252,7 @@ class ApplicationWindow(QMainWindow):
         self.viewMenu.addAction(self.pageDockAction)
         self.viewMenu.addAction(self.spectraDockAction)
         self.viewMenu.addAction(self.peakpickingDockAction)
+        self.viewMenu.addAction(self.integralDockAction)
         
         self.menuBar.addMenu(self.fileMenu)
         self.menuBar.addMenu(self.documentMenu)
@@ -476,7 +478,8 @@ class ApplicationWindow(QMainWindow):
             self.pageView.addItem(newItem)
         self.pageView.setCurrentRow(self.currentPageIndex)
         self.pageView.currentRowChanged.connect(self.pageChanged)
-        self.integralDock.setSpectrum(page.spectra[self.currentSpectrumIndex])
+        if self.currentSpectrumIndex >= 0 and self.currentSpectrumIndex < len(page.spectra):
+            self.integralDock.setSpectrum(page.spectra[self.currentSpectrumIndex])
     
     def showSpectraInDock(self):
         if self.currentDocumentIndex >= len(self.documents) or self.currentDocumentIndex < 0:

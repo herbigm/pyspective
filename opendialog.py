@@ -80,7 +80,7 @@ class openDialog(QDialog):
         self.columnDelimiterCombo.addItems(["any whitespace", ",", ";"])
         self.settingsLayout.addWidget(self.columnDelimiterCombo, 3, 1)
         
-        self.settingsLayout.addWidget(QLabel(self.tr("Decimal separator:")), 4, 0)
+        self.settingsLayout.addWidget(QLabel(self.tr("Decimal Separator:")), 4, 0)
         self.decimalSeparatorCombo = QComboBox(self)
         self.decimalSeparatorCombo.addItems([",", "."])
         self.settingsLayout.addWidget(self.decimalSeparatorCombo, 4, 1)

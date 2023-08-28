@@ -19,6 +19,7 @@ from matplotlib.backend_bases import MouseButton
 from matplotlib.patches import Rectangle, Polygon
 
 import numpy as np
+import PIL
 
 class specplot(FigureCanvas):
     #Signals
@@ -247,7 +248,7 @@ class specplot(FigureCanvas):
                 self.XUnit = self.spectraData[0].metadata["Spectral Parameters"]["X Units"]
                 self.YUnit = self.spectraData[0].metadata["Spectral Parameters"]["Y Units"]
             else:
-                spec = self.spectra[i]
+                spec = self.spectraData[i]
                 if spec.xlim[0] < spec.xlim[1]: # from lower to upper on the x axis
                     if spec.xlim[0] < self.fullXlim[0]:
                         self.fullXlim[0] = spec.xlim[0]
@@ -268,7 +269,8 @@ class specplot(FigureCanvas):
     def getIcon(self):
         self.canvas.draw()
         width, height = self.figure.figbbox.width, self.figure.figbbox.height
-        im = QImage(self.canvas.buffer_rgba(), int(width), int(height), QImage.Format.Format_ARGB32)
+        img = PIL.Image.frombytes('RGB', self.figure.canvas.get_width_height(),self.figure.canvas.tostring_rgb())
+        im = QImage(img.tobytes("raw", "RGB"), int(width), int(height), QImage.Format.Format_RGB888)
         return QIcon(QPixmap(im))
     
     def updatePlot(self):
