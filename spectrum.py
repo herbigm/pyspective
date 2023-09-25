@@ -10,6 +10,7 @@ It is the base calss of all other spectra types.
 """
 
 import re
+import os
 import datetime
 
 from PyQt6.QtCore import QDir
@@ -107,7 +108,7 @@ class Spectrum:
         if not fileName:
             fileName, _ = QFileDialog.getOpenFileName(None, "Open new spectrum", baseDir, "all Files (*.*)")
         if not fileName:
-            return False
+            return "Not File Name Given"
         with open(fileName, encoding=options["File Encoding"]) as f:
             lines = f.readlines()
             linenumber = 0
@@ -131,15 +132,17 @@ class Spectrum:
                             self.x.append(float(columns[0]))
                             self.y.append(float(columns[1]))
                     except:
-                        return False
+                        return "Wrong Column Delimiter"
             self.metadata["Comments"] = comments
+            self.metadata["Core Data"]["Title"] = os.path.basename(fileName)
+            self.title = os.path.basename(fileName)
             if len(self.x) > 0:
                 self.xlim = [max(self.x), min(self.x)]
                 self.ylim = [min(self.y), max(self.y)]
                 self.x = np.array(self.x)
                 self.y = np.array(self.y)
                 return True
-        return False
+        return "Could not OpenFile"
     
     def openJCAMPDXfromString(self, s):
         ldr = re.compile("##([\$\w\s/-]*)=(.*)$", re.IGNORECASE)

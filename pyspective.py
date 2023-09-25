@@ -279,12 +279,50 @@ class ApplicationWindow(QMainWindow):
                 return
             self.settings.setValue("lastOpenDir", os.path.dirname(data["File Name"]))
             if data["File Type"] == "Any Text Format":
-                if data["Free Text Settings"]["Spectrum Type"] == "Raman":
+                print(data['File Name'])
+                if data["Free Text Settings"]["Spectrum Type"] == self.tr("Raman"):
                     newSpectrum = spectratypes.ramanSpectrum()
-                    if newSpectrum.openFreeText(fileName=data["File Name"], options=data["Free Text Settings"]):
-                        pass
+                    print("Raman")
+                elif data["Free Text Settings"]["Spectrum Type"] == self.tr("Infrared"):
+                    newSpectrum = spectratypes.infraredSpectrum()
+                    print("infrared")
+                elif data["Free Text Settings"]["Spectrum Type"] == self.tr("UV/VIS"):
+                    newSpectrum = spectratypes.ultravioletSpectrum()
+                    print("ultraviolett")
                 else:
-                    pass
+                    print("Spectrum type not implemented, yet.")
+                
+                if not newSpectrum:
+                    return
+                
+                print(newSpectrum.openFreeText(data["File Name"], data["Free Text Settings"]))
+                
+                
+                if data['open as'] == "document":
+                    document = spectivedocument.spectiveDocument(os.path.basename(data["File Name"]))
+                    self._mainWidget.currentChanged.disconnect()
+                    self._mainWidget.addTab(document, os.path.basename(data["File Name"]))
+                    self._mainWidget.setCurrentIndex(len(self.documents))
+                    self._mainWidget.currentChanged.connect(self.documentChanged)
+                    self.documents.append(document)
+                    self.currentDocumentIndex = len(self.documents)-1
+                    document.addPage("plot")
+                    document.pages[0].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                    document.pages[0].plotWidget.plotChanged.connect(self.showPagesInDock)
+                    self.currentPageIndex = 0
+                    document.pages[0].addSpectrum(newSpectrum)
+                    
+                elif data['open as'] == "page":
+                    document = self.documents[self.currentDocumentIndex]
+                    document.addPage("plot")
+                    document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                    document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
+                    self.currentPageIndex = len(document.pages) - 1
+                    document.pages[-1].addSpectrum(newSpectrum)
+                else:
+                    document = self.documents[self.currentDocumentIndex]
+                    document.pages[self.currentPageIndex].addSpectrum(newSpectrum)
+                    self.currentSpectrumIndex += 1 
             elif data["File Type"] == "JCAMP-DX":
                 blocks = spectrum.getJCAMPblockFromFile(data["File Name"])
                 linkBlock = {}
@@ -349,9 +387,9 @@ class ApplicationWindow(QMainWindow):
                             continue
                         document.pages[self.currentPageIndex].addSpectrum(s)
                     self.currentSpectrumIndex += 1 
-                self.showPagesInDock()
-                self.showSpectraInDock()
-                self.enableDocumentActions()
+            self.showPagesInDock()
+            self.showSpectraInDock()
+            self.enableDocumentActions()
                         
     def openSpectrum(self, block):
         """
