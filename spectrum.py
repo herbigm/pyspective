@@ -140,7 +140,7 @@ class Spectrum:
             self.metadata["Core Data"]["Title"] = os.path.basename(fileName)
             self.title = os.path.basename(fileName)
             if len(self.x) > 0:
-                self.xlim = [max(self.x), min(self.x)]
+                self.xlim = [min(self.x), max(self.x)]
                 self.ylim = [min(self.y), max(self.y)]
                 self.x = np.array(self.x)
                 self.y = np.array(self.y)

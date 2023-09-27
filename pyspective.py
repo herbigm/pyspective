@@ -289,6 +289,12 @@ class ApplicationWindow(QMainWindow):
                 elif data["Free Text Settings"]["Spectrum Type"] == self.tr("UV/VIS"):
                     newSpectrum = spectratypes.ultravioletSpectrum()
                     print("ultraviolett")
+                elif data["Free Text Settings"]["Spectrum Type"] == self.tr("Powder XRD"):
+                    newSpectrum = spectratypes.powderXRD()
+                    print("Powder XRD")
+                elif data["Free Text Settings"]["Spectrum Type"] == self.tr("XRF"):
+                    newSpectrum = spectratypes.xrfSpectrum()
+                    print("XRF")
                 else:
                     print("Spectrum type not implemented, yet.")
                 

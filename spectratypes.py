@@ -133,3 +133,17 @@ class ultravioletSpectrum(opticalSpectrum):
         spec.metadata["Core Data"]["Title"] = self.metadata["Core Data"]["Title"] + " derivative"
         spec.metadata["Core Data"]["Data Type"] = "ULTRAVIOLET SPECTRUM DERIVATIVE"
         return spec
+
+class xrfSpectrum(spectrum.Spectrum):
+    def __init__(self):
+        super().__init__()
+        self.xlabel = "energy [keV]"
+        self.ylabel = "counts per secound"
+        self.metadata["Core Data"]["Data Type"] = "X-RAY FLUORESCENCE SPECTRUM"
+        
+class powderXRD(spectrum.Spectrum):
+    def __init__(self):
+        super().__init__()
+        self.xlabel = "° 2 $\Theta$"
+        self.ylabel = "counts per secound"
+        self.metadata["Core Data"]["Data Type"] = "POWDER X-RAY DIFFRACTION"

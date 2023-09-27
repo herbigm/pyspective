@@ -62,7 +62,7 @@ class openDialog(QDialog):
         
         self.settingsLayout.addWidget(QLabel(self.tr("Spectrum Type:")), 0, 0)
         self.spectrumTypeCombo = QComboBox(self)
-        self.spectrumTypeCombo.addItems([self.tr("Raman"), self.tr("Infrared"), self.tr("UV/VIS"), self.tr("NMR"), self.tr("XRF"), self.tr("XRD")])
+        self.spectrumTypeCombo.addItems([self.tr("Raman"), self.tr("Infrared"), self.tr("UV/VIS"), self.tr("NMR"), self.tr("XRF"), self.tr("Powder XRD")])
         self.settingsLayout.addWidget(self.spectrumTypeCombo, 0, 1)
         
         self.settingsLayout.addWidget(QLabel(self.tr("File Encoding:")), 1, 0)
