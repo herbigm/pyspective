@@ -122,7 +122,10 @@ class Spectrum:
                 if line.startswith(options['Comment Character']):
                     comments += "\r\n" + line
                     continue
-                columns = line.split(options["Column Delimiter"])
+                if options["Column Delimiter"] == "any whitespace":
+                    columns = line.split()
+                else :
+                    columns = line.split(options["Column Delimiter"])
                 if len(columns) > 1:
                     try:
                         if not options["Decimal Separator"] == ".":
