@@ -146,6 +146,10 @@ class ApplicationWindow(QMainWindow):
         self.integralDock.visibilityChanged.connect(lambda show: self.integralDockAction.setChecked(show))
         self.integralDock.integralsChanged.connect(self.updatePlot)
         
+        self.xrdDock = processdocks.XrdDock(self)
+        self.xrdDock.setObjectName("XRD Dock")
+        self.xrdDock.referenceChanged.connect(self.updatePlot)
+        
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
         self.closeAction.setIcon(QIcon.fromTheme("application-exit", QIcon("icons/application-exit.svg")))
@@ -196,6 +200,10 @@ class ApplicationWindow(QMainWindow):
         self.integralDockAction.setIcon(QIcon("icons/Integration.png"))
         self.integralDockAction.setCheckable(True)
         self.integralDockAction.triggered.connect(self.showIntegralDock)
+        
+        self.xrdReferenceDockAction = QAction(self.tr('Show XRD reference Dock'))
+        self.xrdReferenceDockAction.setCheckable(True)
+        self.xrdReferenceDockAction.triggered.connect(self.showXrdReferenceDock)
         
         self.pageEditAction = QAction(self.tr('Edit Page'))
         self.pageEditAction.setIcon(QIcon("icons/Edit.png"))
@@ -253,6 +261,7 @@ class ApplicationWindow(QMainWindow):
         self.viewMenu.addAction(self.spectraDockAction)
         self.viewMenu.addAction(self.peakpickingDockAction)
         self.viewMenu.addAction(self.integralDockAction)
+        self.viewMenu.addAction(self.xrdReferenceDockAction)
         
         self.menuBar.addMenu(self.fileMenu)
         self.menuBar.addMenu(self.documentMenu)
@@ -291,6 +300,7 @@ class ApplicationWindow(QMainWindow):
                     print("ultraviolett")
                 elif data["Free Text Settings"]["Spectrum Type"] == self.tr("Powder XRD"):
                     newSpectrum = spectratypes.powderXRD()
+                    self.xrdDock.setSpectrum(newSpectrum)
                     print("Powder XRD")
                 elif data["Free Text Settings"]["Spectrum Type"] == self.tr("XRF"):
                     newSpectrum = spectratypes.xrfSpectrum()
@@ -363,6 +373,8 @@ class ApplicationWindow(QMainWindow):
                         s = self.openSpectrum(blocks[i])
                         if not s:
                             continue
+                        if type(s).__name__ == "powderXRD":
+                            self.xrdDock.setSpectrum(s)
                         if s.displayData['Page']:
                             document.pages[s.displayData['Page'] - 1].addSpectrum(s)
                         else:
@@ -379,6 +391,8 @@ class ApplicationWindow(QMainWindow):
                         s = self.openSpectrum(blocks[i])
                         if not s:
                             continue
+                        if type(s).__name__ == "powderXRD":
+                            self.xrdDock.setSpectrum(s)
                         if s.displayData['Page']:
                             document.pages[pageOffset + s.displayData['Page'] - 1].addSpectrum(s)
                         else:
@@ -391,6 +405,8 @@ class ApplicationWindow(QMainWindow):
                         s = self.openSpectrum(blocks[i])
                         if not s:
                             continue
+                        if type(s).__name__ == "powderXRD":
+                            self.xrdDock.setSpectrum(s)
                         document.pages[self.currentPageIndex].addSpectrum(s)
                     self.currentSpectrumIndex += 1 
             self.showPagesInDock()
@@ -415,7 +431,6 @@ class ApplicationWindow(QMainWindow):
             # it is an infrared spectrum!
             newSpectrum = spectratypes.infraredSpectrum()
             print("infrared")
-            
         elif "RAMAN SPECTRUM" in block.upper():
             # it is a Raman Spectrum!
             print("raman")
@@ -424,6 +439,10 @@ class ApplicationWindow(QMainWindow):
             # it is an UV-VIS spectrum!
             newSpectrum = spectratypes.ultravioletSpectrum()
             print("ultraviolet")
+        elif "POWDER X-RAY DIFFRACTION" in block.upper():
+            # it is a powder XRD spectrum!
+            newSpectrum = spectratypes.powderXRD()
+            print("pXRD")
         if newSpectrum.openJCAMPDXfromString(block):
             return newSpectrum
         return False
@@ -496,6 +515,12 @@ class ApplicationWindow(QMainWindow):
             self.integralDock.show()
         else: 
             self.integralDock.hide()
+            
+    def showXrdReferenceDock(self, show):
+        if show:
+            self.xrdDock.show()
+        else: 
+            self.xrdDock.hide()
 
     def saveFile(self):
         if not self.documents[self.currentDocumentIndex].fileName:

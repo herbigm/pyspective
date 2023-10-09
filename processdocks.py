@@ -31,7 +31,15 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QInputDialog,
     QMenu,
+    QListWidget,
+    QGridLayout,
+    QFileDialog,
+    QListWidgetItem,
+    QCheckBox
 )
+
+import os
+import math
 
 class peakpickingDock(QDockWidget):
     peaksChanged = pyqtSignal()
@@ -297,3 +305,203 @@ class integralDialog(QDialog):
             self.colorButton.setIcon(QIcon(pix))
             self.colorButton.setText(color.name())
             self.color = color.name()
+
+class XrdDock(QDockWidget):
+    referenceChanged = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super(XrdDock, self).__init__(parent)
+        self.setWindowTitle("XRD References")
+        
+        self.spectrum = None
+        
+        self.mainWidget = QWidget()
+        self.layout = QVBoxLayout()
+        self.mainWidget.setLayout(self.layout)
+        
+        self.addButton = QPushButton(self.tr("Add Reference"), self)
+        self.layout.addWidget(self.addButton)
+        self.addButton.clicked.connect(self.showDialog)
+        
+        self.referenceList = QListWidget(self)
+        self.layout.addWidget(self.referenceList)
+        self.referenceList.itemDoubleClicked.connect(self.updateReference)
+        self.referenceList.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.referenceList.customContextMenuRequested.connect(self.showContextMenu)
+        
+        self.setWidget(self.mainWidget)
+    
+    def setSpectrum(self, spec):
+        self.spectrum = spec
+        for ref in spec.references:
+            pix = QPixmap(QSize(32,32))
+            pix.fill(QColor.fromString(ref['Color']))
+            self.referenceList.addItem(QListWidgetItem(QIcon(pix), ref['Title']))
+    
+    def showDialog(self):
+        if not self.spectrum:
+            return
+        dgl = XrdReferenceDialog(self)
+        if dgl.exec():
+            data = dgl.getData()
+            
+            if data['File Name'] == "":
+                return
+            with open(data['File Name']) as f:
+                lines = f.readlines()
+                x = []
+                y = []
+                if lines[0].strip().lower() == "h      k      l  d-spacing       f^2     multiplicity":
+                    for line in lines[1:]:
+                        parts = line.split()
+                        y.append(float(parts[4]))
+                        x.append(round(math.asin(self.spectrum.wavelength / 2.0 / float(parts[3]))*180.0/math.pi*2, 2))
+                elif lines[0].strip().lower() == "h	k	l	2theta	d-value	mult	intensity":
+                    for line in lines[1:]:
+                        parts = line.split()
+                        y.append(float(parts[5]))
+                        x.append(float(parts[3]))
+                # make x unique
+                newX = [0]
+                newY = [0]
+                for i in range(len(x)):
+                    if x[i] != newX[-1]:
+                        newX.append(x[i])
+                        newY.append(y[i])
+                    else:
+                        newY[-1] += y[i]
+                ref = {}
+                ref['x'] = newX[1:]
+                ref['y'] = newY[1:]
+                ref['Color'] = data['Color']
+                ref['Title'] = data['Title']
+                ref['Display'] = data['Display']
+                self.spectrum.references.append(ref)
+                self.referenceChanged.emit()
+                
+                pix = QPixmap(QSize(32,32))
+                pix.fill(QColor.fromString(data['Color']))
+                self.referenceList.addItem(QListWidgetItem(QIcon(pix), data['Title']))
+    
+    def updateReference(self, item):
+        if not self.spectrum:
+            return
+        index = self.referenceList.row(item)
+        dgl = XrdReferenceDialog(self)
+        dgl.setData(self.spectrum.references[index])
+        if dgl.exec():
+            data = dgl.getData()
+            self.spectrum.references[index]['Color'] = data['Color']
+            self.spectrum.references[index]['Title'] = data['Title']
+            self.spectrum.references[index]['Display'] = data['Display']
+            self.referenceChanged.emit()
+            pix = QPixmap(QSize(32,32))
+            pix.fill(QColor.fromString(data['Color']))
+            item.setIcon(QIcon(pix))
+            item.setText(data['Title'])
+    
+    def showContextMenu(self, pos):
+        item = self.referenceList.itemAt(pos)
+        if item:
+            row = self.referenceList.row(item)
+            menu = QMenu(self)
+            editAction = QAction(self.tr("Edit Reference Display"))
+            deleteAction = QAction(self.tr("Delete Reference"))
+            menu.addAction(editAction)
+            menu.addAction(deleteAction)
+            
+            action = menu.exec(self.referenceList.mapToGlobal(pos))
+            if action == editAction:
+                self.updateReference(item)
+            elif action == deleteAction:
+                del self.spectrum.references[row]
+                self.referenceList.takeItem(row)
+                self.referenceChanged.emit()
+            
+
+class XrdReferenceDialog(QDialog):
+    def __init__(self, parent=None):
+        super(XrdReferenceDialog, self).__init__(parent)
+        self.setWindowTitle("XRD Reference Dialog")
+        
+        self.settings = QtCore.QSettings('TUBAF', 'pySpective')
+                
+        Buttons = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        self.buttonBox = QDialogButtonBox(Buttons)
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        self.layout = QGridLayout()
+        
+        self.fileNameLabel0 = QLabel(self.tr("File Name: "))
+        self.layout.addWidget(self.fileNameLabel0, 0, 0, 1,1)
+        self.fileNameLabel = QLabel(self.tr(""))
+        self.layout.addWidget(self.fileNameLabel, 0, 1, 1, 1)
+        self.fileNameButton = QPushButton("...", self)
+        self.fileNameButton.clicked.connect(self.chooseFile)
+        self.layout.addWidget(self.fileNameButton, 0, 2, 1, 1)
+        
+        self.layout.addWidget(QLabel('Title: '), 1, 0, 1, 1)
+        self.titleEdit = QLineEdit(self)
+        self.layout.addWidget(self.titleEdit, 1, 1, 1, 2)
+        
+        self.layout.addWidget(QLabel(self.tr("Color: ")), 2, 0, 1, 1)
+        pix = QPixmap(QSize(32,32))
+        pix.fill(QColor.fromString("#000000"))
+        self.colorButton = QPushButton(QIcon(pix), "#000000")
+        self.colorButton.clicked.connect(self.chooseColor)
+        self.layout.addWidget(self.colorButton, 2, 1, 1, 2)
+        
+        self.layout.addWidget(QLabel('Display: '), 3, 0, 1, 1)
+        self.displayCheck = QCheckBox(self)
+        self.displayCheck.setChecked(True)
+        self.layout.addWidget(self.displayCheck, 3, 1, 1, 2)
+                
+        self.layout.addWidget(self.buttonBox, 4, 0, 1, 3)
+        self.setLayout(self.layout)
+        
+        self.color = "#000000"
+
+  
+    def getData(self):
+        data = {}
+        data['File Name'] = self.fileNameLabel.text()
+        data['Title'] = self.titleEdit.text()
+        data['Color'] = self.color
+        data['Display'] = self.displayCheck.isChecked()
+        return data
+    
+    def setData(self, data):
+        self.fileNameLabel0.hide()
+        self.fileNameLabel.hide()
+        self.fileNameButton.hide()
+        
+        self.titleEdit.setText(data['Title'])
+        self.displayCheck.setChecked(data['Display'])
+        pix = QPixmap(QSize(32,32))
+        pix.fill(QColor.fromString(data['Color']))
+        self.colorButton.setIcon(QIcon(pix))
+        self.colorButton.setText(data['Color'])
+        self.color = data['Color']
+    
+    def chooseFile(self):
+        if self.settings.value("lastXrdReferenceOpenDir"):
+            fileName, filterType = QFileDialog.getOpenFileName(None, "Open Reference", self.settings.value("lastXrdReferenceOpenDir"), self.tr("hkl-File (*.hkl *.csv *.txt)"))
+        else:
+            fileName, filterType = QFileDialog.getOpenFileName(None, "Open Reference", QDir.homePath(), self.tr("hkl-File (*.hkl *.csv *.txt)"))
+        if fileName:
+            self.fileNameLabel.setText(fileName)
+            self.settings.setValue("lastXrdReferenceOpenDir", os.path.dirname(fileName))
+            
+    
+    def chooseColor(self):
+        dgl = QColorDialog(self)
+        dgl.setCurrentColor(QColor.fromString(self.color))
+        if dgl.exec():
+            color = dgl.currentColor()
+            pix = QPixmap(QSize(32,32))
+            pix.fill(color)
+            self.colorButton.setIcon(QIcon(pix))
+            self.colorButton.setText(color.name())
+            self.color = color.name()
+        

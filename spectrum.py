@@ -324,6 +324,8 @@ class Spectrum:
                         self.peakParameter = json.loads(data.replace("\r\n", ""))
                     elif label == "$INTEGRALS":
                         self.integrals = json.loads(data.replace("\r\n", ""))
+                    elif label == "$XRD REFERENCES":
+                        self.references = json.loads(data.replace("\r\n", ""))
                     elif label == "$YAXIS":
                         self.yaxis = int(data)
                     else: 

@@ -7,6 +7,7 @@ Created on Sat Apr  8 11:10:47 2023
 """
 
 import spectrum
+import json
 
 import numpy as np
 
@@ -147,3 +148,11 @@ class powderXRD(spectrum.Spectrum):
         self.xlabel = "° 2 $\Theta$"
         self.ylabel = "counts per secound"
         self.metadata["Core Data"]["Data Type"] = "POWDER X-RAY DIFFRACTION"
+        
+        self.references = []
+        self.wavelength = 1.5418
+        
+    def getAsJCAMPDX(self, insert=None):
+        if len(self.references) > 0:
+            insert += "\r\n##$XRD REFERENCES=" + json.dumps(self.references)
+        return super().getAsJCAMPDX(insert)

@@ -302,6 +302,23 @@ class specplot(FigureCanvas):
                     x1, x2 = spec.getIntegrationRangeByIndex(i['x1'], i['x2'])
                     poly = Polygon([*zip(spec.x[x1:x2], spec.y[x1:x2])], color=i['color'])
                     self.ax.add_patch(poly)
+            if type(spec).__name__ == 'powderXRD':
+                currentYlim = self.ax.get_ylim()
+                ymin = currentYlim[0]
+                if len(spec.references) > 0:
+                    if currentYlim[0] >= 0:
+                        ymin = -(spec.ylim[1] - spec.ylim[0])/10
+                        self.ax.set_ylim(ymin, currentYlim[1])
+                        spec.ylim[0] = ymin
+                        self.fullYlim[0] = ymin
+                else:
+                    spec.ylim[0] = np.min(spec.y)
+                    self.ax.set_ylim(spec.ylim[0], currentYlim[1]) # remove space under the graph if no references are present
+                    self.fullYlim[0] = spec.ylim[0]
+                for ref in spec.references:
+                    if not ref['Display']:
+                        continue
+                    self.ax.vlines(ref['x'], ymin, 0, colors=ref['Color'], label=ref['Title'])
 
         if self.supTitle != "":
             self.ax.figure.suptitle(self.supTitle)
