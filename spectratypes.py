@@ -142,12 +142,23 @@ class xrfSpectrum(spectrum.Spectrum):
         self.ylabel = "counts per secound"
         self.metadata["Core Data"]["Data Type"] = "X-RAY FLUORESCENCE SPECTRUM"
         
+        self.displayData["Legend"] = "best"
+        
+        self.references = []
+        
+    def getAsJCAMPDX(self, insert=None):
+        if len(self.references) > 0:
+            insert += "\r\n##$XRF REFERENCES=" + json.dumps(self.references)
+        return super().getAsJCAMPDX(insert)
+        
 class powderXRD(spectrum.Spectrum):
     def __init__(self):
         super().__init__()
         self.xlabel = "° 2 $\Theta$"
         self.ylabel = "counts per secound"
         self.metadata["Core Data"]["Data Type"] = "POWDER X-RAY DIFFRACTION"
+        
+        self.displayData["Legend"] = "best"
         
         self.references = []
         self.wavelength = 1.5418

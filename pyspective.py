@@ -10,7 +10,7 @@ import sys
 import os
 import re
 
-from PyQt6 import QtCore, QtGui
+from PyQt6 import QtCore
 from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QColor, QActionGroup
 from PyQt6.QtCore import QDir, Qt, QSize, QSettings
 from PyQt6.QtWidgets import (
@@ -149,6 +149,12 @@ class ApplicationWindow(QMainWindow):
         self.xrdDock = processdocks.XrdDock(self)
         self.xrdDock.setObjectName("XRD Dock")
         self.xrdDock.referenceChanged.connect(self.updatePlot)
+        self.xrdDock.visibilityChanged.connect(lambda show: self.xrdReferenceDockAction.setChecked(show))
+        
+        self.xrfDock = processdocks.XrfDock(self)
+        self.xrfDock.setObjectName("XRF Dock")
+        self.xrfDock.referenceChanged.connect(self.updatePlot)
+        self.xrfDock.visibilityChanged.connect(lambda show: self.xrfReferenceDockAction.setChecked(show))
         
     def createActions(self):
         self.closeAction = QAction(self.tr('Quit'))
@@ -204,6 +210,10 @@ class ApplicationWindow(QMainWindow):
         self.xrdReferenceDockAction = QAction(self.tr('Show XRD reference Dock'))
         self.xrdReferenceDockAction.setCheckable(True)
         self.xrdReferenceDockAction.triggered.connect(self.showXrdReferenceDock)
+        
+        self.xrfReferenceDockAction = QAction(self.tr('Show XRF reference Dock'))
+        self.xrfReferenceDockAction.setCheckable(True)
+        self.xrfReferenceDockAction.triggered.connect(self.showXrfReferenceDock)
         
         self.pageEditAction = QAction(self.tr('Edit Page'))
         self.pageEditAction.setIcon(QIcon("icons/Edit.png"))
@@ -262,6 +272,7 @@ class ApplicationWindow(QMainWindow):
         self.viewMenu.addAction(self.peakpickingDockAction)
         self.viewMenu.addAction(self.integralDockAction)
         self.viewMenu.addAction(self.xrdReferenceDockAction)
+        self.viewMenu.addAction(self.xrfReferenceDockAction)
         
         self.menuBar.addMenu(self.fileMenu)
         self.menuBar.addMenu(self.documentMenu)
@@ -304,6 +315,7 @@ class ApplicationWindow(QMainWindow):
                     print("Powder XRD")
                 elif data["Free Text Settings"]["Spectrum Type"] == self.tr("XRF"):
                     newSpectrum = spectratypes.xrfSpectrum()
+                    self.xrfDock.setSpectrum(newSpectrum)
                     print("XRF")
                 else:
                     print("Spectrum type not implemented, yet.")
@@ -375,6 +387,8 @@ class ApplicationWindow(QMainWindow):
                             continue
                         if type(s).__name__ == "powderXRD":
                             self.xrdDock.setSpectrum(s)
+                        elif type(s).__name__ == "xrfSpectrum":
+                            self.xrfDock.setSpectrum(s)
                         if s.displayData['Page']:
                             document.pages[s.displayData['Page'] - 1].addSpectrum(s)
                         else:
@@ -393,6 +407,8 @@ class ApplicationWindow(QMainWindow):
                             continue
                         if type(s).__name__ == "powderXRD":
                             self.xrdDock.setSpectrum(s)
+                        elif type(s).__name__ == "xrfSpectrum":
+                            self.xrfDock.setSpectrum(s)
                         if s.displayData['Page']:
                             document.pages[pageOffset + s.displayData['Page'] - 1].addSpectrum(s)
                         else:
@@ -407,6 +423,8 @@ class ApplicationWindow(QMainWindow):
                             continue
                         if type(s).__name__ == "powderXRD":
                             self.xrdDock.setSpectrum(s)
+                        elif type(s).__name__ == "xrfSpectrum":
+                            self.xrfDock.setSpectrum(s)
                         document.pages[self.currentPageIndex].addSpectrum(s)
                     self.currentSpectrumIndex += 1 
             self.showPagesInDock()
@@ -443,6 +461,10 @@ class ApplicationWindow(QMainWindow):
             # it is a powder XRD spectrum!
             newSpectrum = spectratypes.powderXRD()
             print("pXRD")
+        elif "X-RAY FLUORESCENCE SPECTRUM" in block.upper():
+            # it is a powder XRF spectrum!
+            newSpectrum = spectratypes.xrfSpectrum()
+            print("XRF")
         if newSpectrum.openJCAMPDXfromString(block):
             return newSpectrum
         return False
@@ -521,6 +543,12 @@ class ApplicationWindow(QMainWindow):
             self.xrdDock.show()
         else: 
             self.xrdDock.hide()
+            
+    def showXrfReferenceDock(self, show):
+        if show:
+            self.xrfDock.show()
+        else: 
+            self.xrfDock.hide()
 
     def saveFile(self):
         if not self.documents[self.currentDocumentIndex].fileName:
@@ -612,7 +640,7 @@ class ApplicationWindow(QMainWindow):
             self.settings.setValue("LastSaveDir", os.path.dirname(fileName))
             if not fileName.endswith(".dx"):
                 fileName += ".dx"
-            document = self.documents[self.currentDocumentIndex].saveSpectrum(self.currentSpectrumIndex, fileName)
+            self.documents[self.currentDocumentIndex].saveSpectrum(self.currentSpectrumIndex, fileName)
             
     def savePage(self):
         if self.settings.value("LastSaveDir"):
@@ -624,11 +652,11 @@ class ApplicationWindow(QMainWindow):
             self.settings.setValue("LastSaveDir", os.path.dirname(fileName))
             if not fileName.endswith(".dx"):
                 fileName += ".dx"
-            document = self.documents[self.currentDocumentIndex].savePage(fileName)
+            self.documents[self.currentDocumentIndex].savePage(fileName)
     
     def pageEdit(self, row = -1):
         dgl = pagedialog.pageDialog()
-        if row == -1:
+        if row == -1 or not row:
             row = self.currentPageIndex
         if type(row) != int:
             row = self.pageView.row(row)

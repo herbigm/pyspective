@@ -326,6 +326,8 @@ class Spectrum:
                         self.integrals = json.loads(data.replace("\r\n", ""))
                     elif label == "$XRD REFERENCES":
                         self.references = json.loads(data.replace("\r\n", ""))
+                    elif label == "$XRF REFERENCES":
+                        self.references = json.loads(data.replace("\r\n", ""))
                     elif label == "$YAXIS":
                         self.yaxis = int(data)
                     else: 

@@ -25,6 +25,7 @@ import numpy as np
 
 import specplot
 from spectrum import checkLength
+import spectratypes
 
 class spectiveDocument(QWidget):
     def __init__(self, title = "", parent = None):
@@ -217,15 +218,15 @@ class spectivePlotPage(QWidget):
             s.xlabel = data["XLabel"]
             s.ylabel = data["YLabel"]
             
-            fullXlim = s.convertXUnit(data["XUnit"], self.plotWidget.fullXlim.copy())
-            fullYlim = s.convertYUnit(data["YUnit"], self.plotWidget.fullYlim.copy())
+            if issubclass(type(s), spectratypes.opticalSpectrum):
+                fullXlim = s.convertXUnit(data["XUnit"], self.plotWidget.fullXlim.copy())
+                fullYlim = s.convertYUnit(data["YUnit"], self.plotWidget.fullYlim.copy())
+                self.plotWidget.fullXlim = fullXlim
+                self.plotWidget.fullYlim = fullYlim
                         
             if data["invertX"]:
                 s.x = np.flip(s.x)
                 s.y = np.flip(s.y)
-        
-        self.plotWidget.fullXlim = fullXlim
-        self.plotWidget.fullYlim = fullYlim
         
         if data["invertX"]:
             self.plotWidget.fullXlim[0], self.plotWidget.fullXlim[1] = self.plotWidget.fullXlim[1], self.plotWidget.fullXlim[0]

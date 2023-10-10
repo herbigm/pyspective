@@ -21,6 +21,8 @@ from matplotlib.patches import Rectangle, Polygon
 import numpy as np
 import PIL
 
+import json
+
 class specplot(FigureCanvas):
     #Signals
     positionChanged = pyqtSignal(float, float)
@@ -40,6 +42,12 @@ class specplot(FigureCanvas):
         self.legend = ""
         self.selectionMode = "ZoomMode"
         
+        self.settings = QtCore.QSettings('TUBAF', 'pySpective')
+        if self.settings.value("XRFElementLines"):
+            self.ElementLines = self.settings.value("XRFElementLines")
+        else:
+            self.ElementLines = json.load(open("ElementLines.json"))
+            self.settings.setValue("XRFElementLines", self.ElementLines)
         
         # events
         self.plotMouseMove = self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
@@ -319,6 +327,35 @@ class specplot(FigureCanvas):
                     if not ref['Display']:
                         continue
                     self.ax.vlines(ref['x'], ymin, 0, colors=ref['Color'], label=ref['Title'])
+            elif type(spec).__name__ == 'xrfSpectrum':
+                self.ElementLines = self.settings.value("XRFElementLines")
+                for ref in spec.references:
+                    # get maximum counts at most intens line in spectrum range
+                    # lines are sorted in reference list by intensity, so the first line inside the spectrum range is the most intens.
+                    maxIntens = 0
+                    linesX = []
+                    linesYmax = []
+                    for line in self.ElementLines[ref]['Lines']:
+                        if line['Energy'] < spec.xlim[1] * 1000 and line['Energy'] > spec.xlim[0] * 1000 and line['Energy'] > 1000.0:
+                            if line['rel. Intensity'] > maxIntens:
+                                maxIntens = line['rel. Intensity']
+                                for i in range(1, len(spec.x)):
+                                    if spec.x[i-1] * 1000 < line['Energy'] and spec.x[i] * 1000 > line['Energy']:
+                                        m = (spec.y[i] - spec.y[i-1])/(spec.x[i] - spec.x[i-1]) / 1000
+                                        n = -m * spec.x[i] * 1000 + spec.y[i]
+                                        countsAtEnergy = m * line['Energy'] + n
+                                        break
+                                    elif spec.x[i-1] * 1000 == line['Energy']:
+                                        countsAtEnergy = spec.y[i-1]
+                                        break
+                                    elif spec.x[i] * 1000 == line['Energy']:
+                                        countsAtEnergy = spec.y[i]
+                                        break
+                                if countsAtEnergy < 0.1 * np.max(spec.y):
+                                    countsAtEnergy = 0.1 * np.max(spec.y)
+                            linesX.append(line['Energy'] / 1000)
+                            linesYmax.append(line['rel. Intensity'] * countsAtEnergy / maxIntens)
+                    self.ax.vlines(x=linesX, ymin=0, ymax=linesYmax, color=self.ElementLines[ref]['Display Color'], label=ref)
 
         if self.supTitle != "":
             self.ax.figure.suptitle(self.supTitle)

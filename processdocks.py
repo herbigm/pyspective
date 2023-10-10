@@ -35,11 +35,13 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QFileDialog,
     QListWidgetItem,
-    QCheckBox
+    QCheckBox,
+    QTextEdit
 )
 
 import os
 import math
+import json
 
 class peakpickingDock(QDockWidget):
     peaksChanged = pyqtSignal()
@@ -505,3 +507,182 @@ class XrdReferenceDialog(QDialog):
             self.colorButton.setText(color.name())
             self.color = color.name()
         
+class XrfDock(QDockWidget):
+    referenceChanged = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super(XrfDock, self).__init__(parent)
+        self.setWindowTitle("XRF References")
+        
+        self.spectrum = None
+        
+        self.settings = QtCore.QSettings('TUBAF', 'pySpective')
+        if self.settings.value("XRFElementLines"):
+            self.ElementLines = self.settings.value("XRFElementLines")
+        else:
+            self.ElementLines = json.load(open("ElementLines.json"))
+            self.settings.setValue("XRFElementLines", self.ElementLines)
+        
+        self.mainWidget = QWidget()
+        self.layout = QGridLayout()
+        self.mainWidget.setLayout(self.layout)
+        
+        PeriodicTable = [['H', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'He'], 
+                 ['Li', 'Be', '', '', '', '', '', '', '', '', '', '', 'B', 'C', 'N', 'O', 'F', 'Ne'],
+                 ['Na', 'Mg', '', '', '', '', '', '', '', '', '', '', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar'],
+                 ['K', 'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr'],
+                 ['Rb', 'Sr', 'Y', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd', 'In', 'Sn', 'Sb', 'Te', 'I', 'Xe'],
+                 ['Cs', 'Ba', '', 'Hf', 'Ta', 'W', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn'],
+                 ['Fr', 'Ra', '', '(Rf)', '(Db)', '(Sg)', '(Bh)', '(Hs)', '(Mt)', '(Ds)', '(Rg)', '(Cn)', '(Nh)', '(Fl)', '(Mc)', '(Lv)', '(Ts)', '(Og)'],
+                 ['', '', 'La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', ''],
+                 ['', '', 'Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', '(Es)', '(Fm)', '(Md)', '(No)', '(Lr)', '']
+                 ]
+        self.Buttons = [] # buttons to access when loading spectrum to set right color
+        for period in range(len(PeriodicTable)):
+            for group in range(len(PeriodicTable[period])):
+                if PeriodicTable[period][group] != "":
+                    btn = QPushButton(PeriodicTable[period][group], self)
+                    btn.setFixedSize(25,25)
+                    if PeriodicTable[period][group].startswith("("):
+                        btn.setEnabled(False)
+                    else:
+                        btn.clicked.connect(self.buttonClicked)
+                        self.Buttons.append(btn)
+                    self.layout.addWidget(btn, period, group)
+        self.settingsBtn = QPushButton(self.tr("Change Element Color Settings"), self)
+        self.layout.addWidget(self.settingsBtn, 0, 3, 1, 8)
+        self.settingsBtn.clicked.connect(self.setElementColors)
+        self.guessBtn = QPushButton(self.tr("Guess Elements from Peaks"), self)
+        self.layout.addWidget(self.guessBtn, 1, 3, 1, 8)
+        self.guessBtn.clicked.connect(self.guessElements)
+        
+        self.setWidget(self.mainWidget)
+    
+    def setSpectrum(self, spec):
+        self.spectrum = spec
+        for btn in self.Buttons:
+            element = btn.text()
+            if element in spec.references:
+                btn.setStyleSheet("background-color: " + self.ElementLines[btn.text()]['Display Color'])
+            else:
+                btn.setStyleSheet("")
+    
+    def buttonClicked(self):
+        btn = self.sender()
+        element = btn.text()
+        if element in self.spectrum.references:
+            self.spectrum.references.remove(element)
+            btn.setStyleSheet("")
+        else: 
+            btn.setStyleSheet("background-color: " + self.ElementLines[element]['Display Color'])
+            self.spectrum.references.append(element)
+        
+        self.referenceChanged.emit()
+    
+    def setElementColors(self):
+        dgl = ElementColorDialog(self)
+        if dgl.exec():
+            self.ElementLines = dgl.getData()
+            self.settings.setValue("XRFElementLines", self.ElementLines)
+            self.updateBtnColors()
+    
+    def updateBtnColors(self):
+        for btn in self.Buttons:
+            if btn.styleSheet() != "":
+                btn.setStyleSheet("background-color: " + self.ElementLines[btn.text()]['Display Color'])
+        self.referenceChanged.emit()
+        
+    def guessElements(self):
+        guess = ""
+        dgl = XrfElementGuessDialog()
+        if len(self.spectrum.peaks) < 1:
+            dgl.output.setPlainText("No Peaks. Please start PeakPicking before guessing Elements")
+            dgl.exec()
+            return
+        
+        for peak in self.spectrum.x[self.spectrum.peaks]:
+            differences = []
+            for element in self.ElementLines:
+                for line in self.ElementLines[element]['Lines']:
+                    d = peak*1000 - line['Energy']
+                    d **= 2
+                differences.append([element + " " + line['symbolSiegbahn'], round(line['Energy'] / 1000.0, 2), line['rel. Intensity'], d])
+            differences = sorted(differences, key=lambda d: d[3])
+            
+            guess += "Element guess for peak at " + str(round(peak, 2)) + " keV\n"
+            guess += "Line \t theo. Energy\t rel. Intensity\n"
+            for i in range(10):
+                guess += differences[i][0] + "\t" + str(differences[i][1]) + "\t" + str(differences[i][2]) + "\n"
+            guess += "\n"
+        dgl.output.setPlainText(guess)
+        dgl.exec()
+        
+    
+class ElementColorDialog(QDialog):
+    def __init__(self, parent=None):
+        super(ElementColorDialog, self).__init__(parent)
+        self.setWindowTitle("XRF Element Color Dialog")
+        
+        self.settings = QtCore.QSettings('TUBAF', 'pySpective')
+        if self.settings.value("XRFElementLines"):
+            self.ElementLines = self.settings.value("XRFElementLines")
+        else:
+            self.ElementLines = json.load(open("ElementLines.json"))
+                
+        Buttons = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        self.buttonBox = QDialogButtonBox(Buttons)
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        self.layout = QVBoxLayout()
+        
+        self.elementListWidget = QListWidget(self)
+        self.layout.addWidget(self.elementListWidget)
+        for element in self.ElementLines:
+            if element.startswith("("):
+                continue
+            pix = QPixmap(QSize(32,32))
+            pix.fill(QColor.fromString(self.ElementLines[element]['Display Color']))
+            self.elementListWidget.addItem(QListWidgetItem(QIcon(pix), element))
+        self.elementListWidget.itemDoubleClicked.connect(self.chooseColor)
+                
+        self.layout.addWidget(self.buttonBox)
+        self.setLayout(self.layout)
+    
+    def chooseColor(self, item):
+        element = item.text()
+        dgl = QColorDialog()
+        dgl.setCurrentColor(QColor.fromString(self.ElementLines[element]['Display Color']))
+        if dgl.exec():
+            color = dgl.currentColor()
+            pix = QPixmap(QSize(32,32))
+            pix.fill(color)
+            item.setIcon(QIcon(pix))
+            self.ElementLines[element]['Display Color'] = color.name()
+    
+    def getData(self):
+        return self.ElementLines
+
+class XrfElementGuessDialog(QDialog):
+    def __init__(self, parent=None):
+        super(XrfElementGuessDialog, self).__init__(parent)
+        self.setWindowTitle("XRF Element Guess Dialog")
+                
+        self.settings = QtCore.QSettings('TUBAF', 'pySpective')
+        if self.settings.value("XRFElementLines"):
+            self.ElementLines = self.settings.value("XRFElementLines")
+        else:
+            self.ElementLines = json.load(open("ElementLines.json"))
+                
+        Buttons = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        self.buttonBox = QDialogButtonBox(Buttons)
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        self.layout = QVBoxLayout()
+        
+        self.output = QTextEdit(self)
+        self.layout.addWidget(self.output)
+        
+        self.layout.addWidget(self.buttonBox)
+        self.setLayout(self.layout)

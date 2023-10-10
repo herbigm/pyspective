@@ -74,3 +74,6 @@ A document may consist of multiple pages with multiple spectra per page. So, for
 ## How can I help?
 
 Contact me so we can start developing this app together.
+
+## References
+The XRF lines were extracted from: https://www.nist.gov/mml/csd/inorganic-measurement-science/resources/xrf-downloads
