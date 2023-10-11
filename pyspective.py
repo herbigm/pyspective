@@ -298,33 +298,43 @@ class ApplicationWindow(QMainWindow):
             if not os.path.exists(data["File Name"]):
                 return
             self.settings.setValue("lastOpenDir", os.path.dirname(data["File Name"]))
-            if data["File Type"] == "Any Text Format":
+            if data["File Type"] == "Any Text Format" or data["File Type"] == "MCA - DESY XRF File Format" or data["File Type"] == "pyXrfa-JSON":
                 print(data['File Name'])
-                if data["Free Text Settings"]["Spectrum Type"] == self.tr("Raman"):
-                    newSpectrum = spectratypes.ramanSpectrum()
-                    print("Raman")
-                elif data["Free Text Settings"]["Spectrum Type"] == self.tr("Infrared"):
-                    newSpectrum = spectratypes.infraredSpectrum()
-                    print("infrared")
-                elif data["Free Text Settings"]["Spectrum Type"] == self.tr("UV/VIS"):
-                    newSpectrum = spectratypes.ultravioletSpectrum()
-                    print("ultraviolett")
-                elif data["Free Text Settings"]["Spectrum Type"] == self.tr("Powder XRD"):
-                    newSpectrum = spectratypes.powderXRD()
-                    self.xrdDock.setSpectrum(newSpectrum)
-                    print("Powder XRD")
-                elif data["Free Text Settings"]["Spectrum Type"] == self.tr("XRF"):
+                if data["File Type"] == "Any Text Format":
+                    if data["Free Text Settings"]["Spectrum Type"] == self.tr("Raman"):
+                        newSpectrum = spectratypes.ramanSpectrum()
+                        print("Raman")
+                    elif data["Free Text Settings"]["Spectrum Type"] == self.tr("Infrared"):
+                        newSpectrum = spectratypes.infraredSpectrum()
+                        print("infrared")
+                    elif data["Free Text Settings"]["Spectrum Type"] == self.tr("UV/VIS"):
+                        newSpectrum = spectratypes.ultravioletSpectrum()
+                        print("ultraviolett")
+                    elif data["Free Text Settings"]["Spectrum Type"] == self.tr("Powder XRD"):
+                        newSpectrum = spectratypes.powderXRD()
+                        self.xrdDock.setSpectrum(newSpectrum)
+                        print("Powder XRD")
+                    elif data["Free Text Settings"]["Spectrum Type"] == self.tr("XRF"):
+                        newSpectrum = spectratypes.xrfSpectrum()
+                        self.xrfDock.setSpectrum(newSpectrum)
+                        print("XRF")
+                    else:
+                        print("Spectrum type not implemented, yet.")
+                    
+                    if not newSpectrum:
+                        return
+                    
+                    print(newSpectrum.openFreeText(data["File Name"], data["Free Text Settings"]))
+                elif data["File Type"] == "MCA - DESY XRF File Format":
                     newSpectrum = spectratypes.xrfSpectrum()
+                    print("XRF - MCA")
+                    print(newSpectrum.openMCA(data['File Name']))
                     self.xrfDock.setSpectrum(newSpectrum)
-                    print("XRF")
-                else:
-                    print("Spectrum type not implemented, yet.")
-                
-                if not newSpectrum:
-                    return
-                
-                print(newSpectrum.openFreeText(data["File Name"], data["Free Text Settings"]))
-                
+                elif data["File Type"] == "pyXrfa-JSON":
+                    newSpectrum = spectratypes.xrfSpectrum()
+                    print("XRF - pyXrfa-JSON")
+                    print(newSpectrum.openPyXrfaJSON(data['File Name']))
+                    self.xrfDock.setSpectrum(newSpectrum)
                 
                 if data['open as'] == "document":
                     document = spectivedocument.spectiveDocument(os.path.basename(data["File Name"]))

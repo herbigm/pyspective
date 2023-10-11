@@ -8,8 +8,10 @@ Created on Sat Apr  8 11:10:47 2023
 
 import spectrum
 import json
+import os
 
 import numpy as np
+from scipy import stats
 
 opticalUnitsX = ["1/CM", "MICROMETERS", "NANOMETERS"]
 opticalUnitsY = ["TRANSMITTANCE", "REFLECTANCE", "ABSORBANCE"]
@@ -150,6 +152,116 @@ class xrfSpectrum(spectrum.Spectrum):
         if len(self.references) > 0:
             insert += "\r\n##$XRF REFERENCES=" + json.dumps(self.references)
         return super().getAsJCAMPDX(insert)
+    
+    def openMCA(self, fileName):
+        """
+        Opens an mca file (DESY file format)
+
+        Parameters
+        ----------
+        filename : String
+            The path to the file, which should be opened
+            
+        Returns
+        -------
+        None.
+
+        """
+        if not fileName:
+            print("No file name given. ")
+            return False
+        if not os.path.exists(fileName):
+            print("file does not exist!")
+            return False
+        
+        f = open(fileName, "r", encoding="iso-8859-1")
+        lines = f.readlines()
+        f.close()
+
+        counts = []
+        currentLine = 0
+        comments = ""
+        while currentLine < len(lines):
+            if lines[currentLine].strip() == "<<CALIBRATION>>": # Beide Punkte für die Energiekali auslesen
+                currentLine += 2
+                CaliLine1 = lines[currentLine]
+                CaliChannel = []
+                CaliEnergy = []
+                Number = []
+                for Z in CaliLine1:   # Das ist bissl umständlich aber passt sich an verschiedene Zahlenlängen der Kaliwerte an
+                    if Z != " ":
+                        Number.append(Z)
+                    if Z == " ":
+                        Number="".join(Number)
+                        CaliChannel.append(float(str(Number)))
+                        Number = []
+                Number="".join(Number)
+                CaliEnergy.append(float(str(Number[:-1])))
+                Number = []
+                currentLine += 1
+                CaliLine2 = lines[currentLine]
+                for Z in CaliLine2:
+                    if Z != " ":
+                        Number.append(Z)
+                    if Z == " ":
+                        Number="".join(Number)
+                        CaliChannel.append(float(str(Number)))
+                        Number = []
+                Number="".join(Number)
+                CaliEnergy.append(float(str(Number[:-1])))
+            elif lines[currentLine].strip() == "<<DATA>>":
+                currentLine += 1
+                while currentLine < len(lines):
+                    if lines[currentLine].strip() == "<<END>>":
+                        currentLine += 1
+                        break
+                    else:
+                        counts.append(int(lines[currentLine].strip()))
+                        currentLine += 1
+            else:
+                comments += lines[currentLine]
+                currentLine += 1
+                
+        # Berechnen der Kalibrierdaten
+
+        slope, intercept, r, p, std_err = stats.linregress(CaliChannel, CaliEnergy )
+        Energy = []
+
+        for i in range(len(counts)):
+            y = slope * i + intercept
+            Energy.append(y)
+
+        # die Listen zu numpy array konvertieren
+        self.x = np.array(Energy)
+        self.y = np.array(counts)
+        self.metadata["Comments"] = comments
+        self.metadata["Core Data"]["Title"] = os.path.basename(fileName)
+        self.title = os.path.basename(fileName)
+        self.xlim = [min(self.x), max(self.x)]
+        self.ylim = [min(self.y), max(self.y)]
+        return True
+    
+    def openPyXrfaJSON(self, fileName):
+        if not fileName:
+            print("No file name given. ")
+            return False
+        if not os.path.exists(fileName):
+            print("file does not exist!")
+            return False
+        
+        data = json.load(open(fileName))
+        self.x = np.array(data['energies'])
+        self.y = np.array(data['counts'])
+        self.metadata["Core Data"]["Title"] = os.path.basename(fileName)
+        self.title = os.path.basename(fileName)
+        self.xlim = [min(self.x), max(self.x)]
+        self.ylim = [min(self.y), max(self.y)]
+        self.references = []
+        
+        for element in data['elementsAndColor']:
+            self.references.append(element[0])
+            
+        return True
         
 class powderXRD(spectrum.Spectrum):
     def __init__(self):

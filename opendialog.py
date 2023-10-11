@@ -50,7 +50,7 @@ class openDialog(QDialog):
         self.layout.addWidget(self.openFileButton, 0, 3)
         self.layout.addWidget(QLabel(self.tr("File Type: ")), 1, 0)
         self.fileTypeCombo = QComboBox(self)
-        self.fileTypeCombo.addItems(["JCAMP-DX", "Any Text Format"])
+        self.fileTypeCombo.addItems(["JCAMP-DX", "Any Text Format", "MCA - DESY XRF File Format", "pyXrfa-JSON"])
         self.fileTypeCombo.currentTextChanged.connect(self.changeFileType)
         self.layout.addWidget(self.fileTypeCombo, 1,1)
         
@@ -130,16 +130,22 @@ class openDialog(QDialog):
     
     def getFileName(self):
         if self.settings.value("lastOpenDir"):
-            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", self.settings.value("lastOpenDir"), self.tr("JCAMP-DX File (*.dx *jdx);; Any Type (*)"))
+            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", self.settings.value("lastOpenDir"), self.tr("JCAMP-DX File (*.dx *jdx);; Any Type (*);;MCA - DESY XRF File Format (*.mca);;pyXrfa-JSON (*.json)"))
         else:
-            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", QDir.homePath(), self.tr("JCAMP-DX File (*.dx);; Any Type (*)"))
+            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", QDir.homePath(), self.tr("JCAMP-DX File (*.dx *jdx);; Any Type (*);;MCA - DESY XRF File Format (*.mca);;pyXrfa-JSON (*.json)"))
         if fileName:
             self.fileNameLabel.setText(fileName)
             if filterType == "Any Type (*)":
-                self.fileTypeCombo.setCurrentText("Any Text Format")
+                self.fileTypeCombo.setCurrentText(self.tr("Any Text Format"))
                 self.freeTextFileSettings.setVisible(True)
             elif filterType == "JCAMP-DX File (*.dx *jdx)":
                 self.fileTypeCombo.setCurrentText("JCAMP-DX")
+                self.freeTextFileSettings.setVisible(False)
+            elif filterType == "MCA - DESY XRF File Format (*.mca)":
+                self.fileTypeCombo.setCurrentText("MCA - DESY XRF File Format")
+                self.freeTextFileSettings.setVisible(False)
+            elif filterType == "pyXrfa-JSON (*.json)":
+                self.fileTypeCombo.setCurrentText("pyXrfa-JSON")
                 self.freeTextFileSettings.setVisible(False)
     
     def changeFileType(self, s):
