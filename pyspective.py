@@ -10,6 +10,8 @@ import sys
 import os
 import re
 
+import numpy as np
+
 from PyQt6 import QtCore
 from PyQt6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QColor, QActionGroup
 from PyQt6.QtCore import QDir, Qt, QSize, QSettings
@@ -94,6 +96,7 @@ class ApplicationWindow(QMainWindow):
         self.toolBar.addAction(self.calculateDerivativeAction)
         self.toolBar.addAction(self.zoomAction)
         self.toolBar.addAction(self.integrationAction)
+        self.toolBar.addAction(self.substractionAction)
         
         self.statusBar = self.statusBar()
         
@@ -243,6 +246,10 @@ class ApplicationWindow(QMainWindow):
         self.calculateDerivativeAction.setIcon(QIcon("icons/Derivative.png"))
         self.calculateDerivativeAction.triggered.connect(self.calculateDerivative)
         self.calculateDerivativeAction.setEnabled(False)
+        
+        self.substractionAction = QAction(self.tr("Substract Spectra"))
+        self.substractionAction.setIcon(QIcon("icons/Derivative.png"))
+        self.substractionAction.triggered.connect(self.substractSpectra)
         
     def createMenuBar(self):
         self.menuBar = self.menuBar()
@@ -772,6 +779,65 @@ class ApplicationWindow(QMainWindow):
         spec = spectrum.calculateDerivative()
         page.addSpectrum(spec)
         self.showSpectraInDock()
+        
+    def substractSpectra(self):
+        page = self.documents[self.currentDocumentIndex].pages[self.currentPageIndex]
+        dgl = processdocks.substractionDialog(page)
+        if dgl.exec():
+            data = dgl.getData()
+            minuend = None
+            subtrahend = None
+            for s in page.spectra:
+                if s.title == data['Minuend']:
+                    minuend = s
+                if s.title == data['Subtrahend']:
+                    subtrahend = s
+            if not minuend or not subtrahend:
+                return
+            if type(minuend).__name__ == "ramanSpectrum":
+                newSpectrum = spectratypes.ramanSpectrum()
+            if data['Abscissa'] == "Minuend":
+                newSpectrum.x = minuend.x.copy()
+                for x in range(len(minuend.x)):
+                    for i in range(1, len(subtrahend.x)):
+                        if (subtrahend.x[i-1] < minuend.x[x] and subtrahend.x[i] > minuend.x[x]) or (subtrahend.x[i-1] > minuend.x[x] and subtrahend.x[i] < minuend.x[x]):
+                            m = (subtrahend.y[i] - subtrahend.y[i-1]) / (subtrahend.x[i] - subtrahend.x[i-1])
+                            n = subtrahend.y[i] - m * subtrahend.x[i]
+                            newSpectrum.y.append(minuend.x[x] - (m*minuend.x[x]+n))
+                            break
+                        if subtrahend.x[i-1] == minuend.x[x]:
+                            newSpectrum.y.append(minuend.y[x] - subtrahend.y[i-1])
+                            break
+                        if subtrahend.x[i] == minuend.x[x]:
+                            newSpectrum.y.append(minuend.y[x] - subtrahend.y[i])
+                            break
+            if data['Abscissa'] == "Subtrahend":
+                newSpectrum.x = subtrahend.x.copy()
+                for x in range(len(subtrahend.x)):
+                    for i in range(1, len(minuend.x)):
+                        if (minuend.x[i-1] < subtrahend.x[x] and minuend.x[i] > subtrahend.x[x]) or (minuend.x[i-1] > subtrahend.x[x] and minuend.x[i] < subtrahend.x[x]):
+                            m = (minuend.y[i] - minuend.y[i-1]) / (minuend.x[i] - minuend.x[i-1])
+                            n = minuend.y[i] - m * minuend.x[i]
+                            newSpectrum.y.append((m*subtrahend.x[x]+n) - subtrahend.x[x])
+                            break
+                        if minuend.x[i-1] == subtrahend.x[x]:
+                            newSpectrum.y.append(minuend.y[i-1] - subtrahend.y[x])
+                            break
+                        if minuend.x[i] == subtrahend.x[x]:
+                            newSpectrum.y.append(minuend.y[i] - subtrahend.y[x])
+                            break
+            newSpectrum.y = np.array(newSpectrum.y)
+            newSpectrum.title = data['Minuend'] + " - " + data['Subtrahend']
+            document = self.documents[self.currentDocumentIndex]
+            document.addPage("plot")
+            document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+            document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
+            self.currentPageIndex = len(document.pages) - 1
+            newSpectrum.xlim = [np.min(newSpectrum.x), np.max(newSpectrum.x)]
+            newSpectrum.ylim = [np.min(newSpectrum.y), np.max(newSpectrum.y)]
+            document.pages[-1].addSpectrum(newSpectrum)
+            self.showSpectraInDock()
+            self.showPagesInDock()
             
                 
 if __name__ == "__main__":

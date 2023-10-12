@@ -36,7 +36,8 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QListWidgetItem,
     QCheckBox,
-    QTextEdit
+    QTextEdit,
+    QRadioButton
 )
 
 import os
@@ -686,3 +687,49 @@ class XrfElementGuessDialog(QDialog):
         
         self.layout.addWidget(self.buttonBox)
         self.setLayout(self.layout)
+        
+class substractionDialog(QDialog):
+    def __init__(self, page, parent=None):
+        super(substractionDialog, self).__init__(parent)
+        self.setWindowTitle("Substraction Dialog")
+                
+        Buttons = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        self.buttonBox = QDialogButtonBox(Buttons)
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        self.layout = QGridLayout()
+        
+        self.layout.addWidget(QLabel(self.tr("Minuend")), 0, 0, 1, 1)
+        self.layout.addWidget(QLabel(" - "), 0, 1, 1, 1)
+        self.layout.addWidget(QLabel(self.tr("Strubtrahend")), 0, 2, 1, 1)
+        
+        self.minuendCombo = QComboBox()
+        for spectrum in page.spectra:
+            self.minuendCombo.addItem(spectrum.title)
+        self.layout.addWidget(self.minuendCombo, 1, 0, 1, 1)
+        
+        self.subtrahendCombo = QComboBox()
+        for spectrum in page.spectra:
+            self.subtrahendCombo.addItem(spectrum.title)
+        self.layout.addWidget(self.subtrahendCombo, 1, 2, 1, 1)
+        
+        self.minuendRadio = QRadioButton()
+        self.minuendRadio.setChecked(True)
+        self.layout.addWidget(self.minuendRadio, 2, 0, 1,1)
+        self.layout.addWidget(QLabel(self.tr("keep abcissa of")), 2, 1, 1, 1)
+        self.subtrahendRadio = QRadioButton()
+        self.layout.addWidget(self.subtrahendRadio, 2, 2, 1, 1)
+        
+        self.layout.addWidget(self.buttonBox, 3, 0, 1, 3)
+        self.setLayout(self.layout)
+        
+    def getData(self):
+        data = {}
+        data['Minuend'] = self.minuendCombo.currentText()
+        data['Subtrahend'] = self.subtrahendCombo.currentText()
+        if self.minuendRadio.isChecked():
+            data['Abscissa'] = 'Minuend'
+        else:
+            data['Abscissa'] = 'Subtrahend'
+        return data
