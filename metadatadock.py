@@ -7,7 +7,7 @@ Created on Thu Jul 27 12:41:15 2023
 """
 
 from PyQt6 import QtCore, QtGui
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction, QIcon, QTextCursor
 from PyQt6.QtCore import pyqtSignal, QDir, Qt, QDateTime
 from PyQt6.QtWidgets import (
     QDockWidget,
@@ -51,13 +51,13 @@ class metadataDock(QDockWidget):
         self.coreLayout.addWidget(self.dataTypeCombo, 1, 1)
         
         self.coreLayout.addWidget(QLabel(self.tr("Origin")), 4,0, alignment=Qt.AlignmentFlag.AlignTop)
-        self.originEdit = QPlainTextEdit()
-        self.originEdit.textChanged.connect(lambda: self.dataChanged.emit(self.getData()))
+        self.originEdit = TextEdit()
+        self.originEdit.editingFinished.connect(lambda: self.dataChanged.emit(self.getData()))
         self.coreLayout.addWidget(self.originEdit, 4, 1)
         
         self.coreLayout.addWidget(QLabel(self.tr("Owner")), 5,0, alignment=Qt.AlignmentFlag.AlignTop)
-        self.ownerEdit = QPlainTextEdit()
-        self.ownerEdit.textChanged.connect(lambda: self.dataChanged.emit(self.getData()))
+        self.ownerEdit = TextEdit()
+        self.ownerEdit.editingFinished.connect(lambda: self.dataChanged.emit(self.getData()))
         self.coreLayout.addWidget(self.ownerEdit, 5, 1)
         
         self.spectralData = QGroupBox(self.tr("Spectral Parameters"))
@@ -116,8 +116,8 @@ class metadataDock(QDockWidget):
         self.mainLayout.addWidget(self.sampleData, 3)
         
         self.sampleLayout.addWidget(QLabel(self.tr("Sample Description")), 0,0, alignment=Qt.AlignmentFlag.AlignTop)
-        self.sampleDescriptionEdit = QPlainTextEdit()
-        self.sampleDescriptionEdit.textChanged.connect(lambda: self.dataChanged.emit(self.getData()))
+        self.sampleDescriptionEdit = TextEdit()
+        self.sampleDescriptionEdit.editingFinished.connect(lambda: self.dataChanged.emit(self.getData()))
         self.sampleLayout.addWidget(self.sampleDescriptionEdit, 0, 1)
         
         self.sampleLayout.addWidget(QLabel(self.tr("CAS Name")), 1,0, alignment=Qt.AlignmentFlag.AlignTop)
@@ -181,8 +181,8 @@ class metadataDock(QDockWidget):
         self.sampleLayout.addWidget(self.molecularWeightEdit, 12, 1)
         
         self.sampleLayout.addWidget(QLabel(self.tr("Concentrations")), 13,0, alignment=Qt.AlignmentFlag.AlignTop)
-        self.concentrationsEdit = QPlainTextEdit()
-        self.concentrationsEdit.textChanged.connect(lambda: self.dataChanged.emit(self.getData()))
+        self.concentrationsEdit = TextEdit()
+        self.concentrationsEdit.editingFinished.connect(lambda: self.dataChanged.emit(self.getData()))
         self.sampleLayout.addWidget(self.concentrationsEdit, 13, 1)
         
         self.equipmentData = QGroupBox(self.tr("Equipment Information"))
@@ -198,8 +198,8 @@ class metadataDock(QDockWidget):
         self.equipmentLayout.addWidget(self.spectrometerEdit, 0, 1)
         
         self.equipmentLayout.addWidget(QLabel(self.tr("Instrumental Parameters")),1,0, alignment=Qt.AlignmentFlag.AlignTop)
-        self.instrumentalParameterEdit = QPlainTextEdit()
-        self.instrumentalParameterEdit.textChanged.connect(lambda: self.dataChanged.emit(self.getData()))
+        self.instrumentalParameterEdit = TextEdit()
+        self.instrumentalParameterEdit.editingFinished.connect(lambda: self.dataChanged.emit(self.getData()))
         self.equipmentLayout.addWidget(self.instrumentalParameterEdit, 1, 1)
         
         self.samplingData = QGroupBox(self.tr("Sampling Information"))
@@ -210,8 +210,8 @@ class metadataDock(QDockWidget):
         self.mainLayout.addWidget(self.samplingData, 5)
         
         self.samplingLayout.addWidget(QLabel(self.tr("Sampling Procedure")), 0,0, alignment=Qt.AlignmentFlag.AlignTop)
-        self.samplingProcedureEdit = QPlainTextEdit()
-        self.samplingProcedureEdit.textChanged.connect(lambda: self.dataChanged.emit(self.getData()))
+        self.samplingProcedureEdit = TextEdit()
+        self.samplingProcedureEdit.editingFinished.connect(lambda: self.dataChanged.emit(self.getData()))
         self.samplingLayout.addWidget(self.samplingProcedureEdit, 0, 1)
         
         self.samplingLayout.addWidget(QLabel(self.tr("State")), 1,0, alignment=Qt.AlignmentFlag.AlignTop)
@@ -221,8 +221,8 @@ class metadataDock(QDockWidget):
         self.samplingLayout.addWidget(self.stateCombo, 1, 1)
         
         self.samplingLayout.addWidget(QLabel(self.tr("Data Processing")), 2,0, alignment=Qt.AlignmentFlag.AlignTop)
-        self.dataProcessingEdit = QPlainTextEdit()
-        self.dataProcessingEdit.textChanged.connect(lambda: self.dataChanged.emit(self.getData()))
+        self.dataProcessingEdit = TextEdit()
+        self.dataProcessingEdit.editingFinished.connect(lambda: self.dataChanged.emit(self.getData()))
         self.samplingLayout.addWidget(self.dataProcessingEdit, 2, 1)
         
         self.samplingLayout.addWidget(QLabel(self.tr("Temperature")), 3,0, alignment=Qt.AlignmentFlag.AlignTop)
@@ -245,8 +245,8 @@ class metadataDock(QDockWidget):
         self.commentData.setLayout(self.commentLayout)
         self.mainLayout.addWidget(self.commentData, 6)
         
-        self.commentEdit = QPlainTextEdit()
-        self.commentEdit.textChanged.connect(lambda: self.dataChanged.emit(self.getData()))
+        self.commentEdit = TextEdit()
+        self.commentEdit.editingFinished.connect(lambda: self.dataChanged.emit(self.getData()))
         self.commentLayout.addWidget(self.commentEdit)
                 
         self.viewport = QWidget()
@@ -335,4 +335,19 @@ class metadataDock(QDockWidget):
         self.temperatureEdit.setText(data["Sampling Information"]["Temperature"])
         self.dataProcessingEdit.setPlainText(data["Sampling Information"]["Data Processing"])
         self.commentEdit.setPlainText(data["Comments"])
+
+class TextEdit(QPlainTextEdit):
+    editingFinished = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super(TextEdit, self).__init__()
+        self.oldText = ""
         
+    def focusInEvent(self, evt):
+        self.oldText = self.toPlainText()
+        super().focusInEvent(evt)
+    
+    def focusOutEvent(self, evt):
+        if self.toPlainText() != self.oldText:
+            self.editingFinished.emit()
+        super().focusOutEvent(evt)
