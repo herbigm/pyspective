@@ -262,6 +262,13 @@ class xrfSpectrum(spectrum.Spectrum):
             self.references.append(element[0])
             
         return True
+    
+    def openAndSetXY(self, x, y):
+        self.x = x
+        self.xlim = [min(x), max(x)]
+        self.y = y
+        self.ylim = [min(y), max(y)]
+                
         
 class powderXRD(spectrum.Spectrum):
     def __init__(self):

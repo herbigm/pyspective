@@ -341,6 +341,7 @@ class Spectrum:
             self.metadata["Notes"]["Date Time"] = datetime.datetime(date.year, date.month, date.day, time.hour, time.minute, time.second, time.microsecond, time.tzinfo)
         elif date:
             self.metadata["Notes"]["Date Time"] = date
+        self.metadata["Comments"] = self.metadata["Comments"].strip()
         return True
 
     def getAsJCAMPDX(self, insert=None):
@@ -416,7 +417,7 @@ class Spectrum:
         if self.metadata["Sample Information"]["Concentrations"] != "":
             c += checkLength("\r\n##CONCENTRATIONS=" + self.metadata["Sample Information"]["Concentrations"])
         if self.metadata["Equipment Information"]["Spectrometer"] != "":
-            c += checkLength("\r\n##SEPCTROMETER/DATA SYSTEM=" + self.metadata["Equipment Information"]["Spectrometer"])
+            c += checkLength("\r\n##SPECTROMETER/DATA SYSTEM=" + self.metadata["Equipment Information"]["Spectrometer"])
         if self.metadata["Equipment Information"]["Instrumental Parameters"] != "":
             c += checkLength("\r\n##INSTRUMENTAL PARAMETERS=" + self.metadata["Equipment Information"]["Instrumental Parameters"])
         if self.metadata["Sampling Information"]["Sampling Procedure"] != "":
@@ -576,7 +577,6 @@ def checkLength(s):
     if len(s) < 80:
         return s
     lines = s.splitlines()
-    print(lines)
     if len(lines) > 1:
         r = ""
         for l in lines:

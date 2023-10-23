@@ -8,6 +8,7 @@ Created on Thu Aug  3 13:42:51 2023
 
 import os
 import json
+import re
 
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import pyqtSignal, QDir, QSettings
@@ -57,12 +58,17 @@ class spectiveDocument(QWidget):
         self.currentPageIndex = index
     
     def deletePage(self, row):
+        plotWidget = self.pages[row].delete()
+        self.layout.removeWidget(plotWidget)
         self.pages.pop(row)
         if row >= len(self.pages):
+            self.currentPageIndex =len(self.pages) - 1
             return len(self.pages) - 1
         elif len(self.pages) == 0:
+            self.currentPageIndex = None
             return None
         else:
+            self.currentPageIndex = row
             return row
         
     def saveDocument(self, fileName = None):
@@ -283,3 +289,15 @@ class spectivePlotPage(QWidget):
     def doIntegration(self, x1, x2):
         self.spectra[self.currentSpectrumIndex].integrate(x1, x2)
         self.updatePlot()
+    
+    def delete(self):
+        self.plotWidget.hide()
+        return self.plotWidget
+    
+    def saveAsImage(self, options={}):
+        fileName, fileTypeFilter = QFileDialog.getSaveFileName(self, "Export Current View", QDir.homePath(), self.tr("Portable Network Graphic (*.png);;Portable Document Format (*.pdf);;Scalable Vector Graphics (*.svg);; Encapsulated PostScript (*.eps);;Tagged Image File Format (*.tif)"))
+        if fileName:
+            m = re.search(r"\*(\.\w{3})", fileTypeFilter, re.IGNORECASE)
+            if not fileName.endswith(m.group(1)):
+                fileName += m.group(1)
+            self.plotWidget.figure.savefig(fileName, dpi=options["dpi"])

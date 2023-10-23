@@ -9,6 +9,7 @@ Created on Thu Mar  9 09:46:12 2023
 import sys
 import os
 import re
+import copy
 
 import numpy as np
 
@@ -305,7 +306,7 @@ class ApplicationWindow(QMainWindow):
             if not os.path.exists(data["File Name"]):
                 return
             self.settings.setValue("lastOpenDir", os.path.dirname(data["File Name"]))
-            if data["File Type"] == "Any Text Format" or data["File Type"] == "MCA - DESY XRF File Format" or data["File Type"] == "pyXrfa-JSON":
+            if data["File Type"] == "Any Text Format" or data["File Type"] == "MCA - DESY XRF File Format" or data["File Type"] == "pyXrfa-JSON" or data["File Type"] == "AMETEK-XRF TXT-Export":
                 print(data['File Name'])
                 if data["File Type"] == "Any Text Format":
                     if data["Free Text Settings"]["Spectrum Type"] == self.tr("Raman"):
@@ -327,7 +328,6 @@ class ApplicationWindow(QMainWindow):
                         print("XRF")
                     else:
                         print("Spectrum type not implemented, yet.")
-                    
                     if not newSpectrum:
                         return
                     
@@ -342,6 +342,28 @@ class ApplicationWindow(QMainWindow):
                     print("XRF - pyXrfa-JSON")
                     print(newSpectrum.openPyXrfaJSON(data['File Name']))
                     self.xrfDock.setSpectrum(newSpectrum)
+                elif data["File Type"] == "AMETEK-XRF TXT-Export":
+                    print("AMETEK-XRF TXT-Export")
+                    newSpectrum = []
+                    with open(data['File Name']) as f:
+                        lines = f.readlines()
+                        kalib1 = [float(z.replace(",", ".")) for z in lines[0].split("\t")[1:-1]]
+                        kalib2 = [float(z.replace(",", ".")) for z in lines[1].split("\t")[1:-1]]
+                        x = [[] for i in range(4)]
+                        y = [[] for i in range(4)]
+                        
+                        for i in range(7, len(lines)):
+                            p = lines[i].split("\t")
+                            for s in range(1, 5):
+                                if (i-6) < 2049 or s == 2:
+                                    x[s-1].append(kalib1[s-1] + kalib2[s-1] * (i-6))
+                                    y[s-1].append(float(p[s]))
+                        for i in range(4):
+                            ns = spectratypes.xrfSpectrum()
+                            ns.openAndSetXY(np.array(x[i]), np.array(y[i]))
+                            ns.title = "Spectrum with filter " + str(i+1)
+                            ns.metadata["Core Data"]["Title"] = "Spectrum with filter " + str(i+1)
+                            newSpectrum.append(ns)
                 
                 if data['open as'] == "document":
                     document = spectivedocument.spectiveDocument(os.path.basename(data["File Name"]))
@@ -351,11 +373,21 @@ class ApplicationWindow(QMainWindow):
                     self._mainWidget.currentChanged.connect(self.documentChanged)
                     self.documents.append(document)
                     self.currentDocumentIndex = len(self.documents)-1
-                    document.addPage("plot")
-                    document.pages[0].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
-                    document.pages[0].plotWidget.plotChanged.connect(self.showPagesInDock)
-                    self.currentPageIndex = 0
-                    document.pages[0].addSpectrum(newSpectrum)
+                    if type(newSpectrum) == list:
+                        for ns in newSpectrum:
+                            document.addPage("plot")
+                            document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                            document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
+                            self.currentPageIndex = len(document.pages) - 1
+                            document.pages[-1].addSpectrum(ns)
+                        if type(ns).__name__ == "xrfSpectrum":
+                            self.xrfDock.setSpectrum(ns)
+                    else:
+                        document.addPage("plot")
+                        document.pages[0].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                        document.pages[0].plotWidget.plotChanged.connect(self.showPagesInDock)
+                        self.currentPageIndex = 0
+                        document.pages[0].addSpectrum(newSpectrum)
                     
                 elif data['open as'] == "page":
                     document = self.documents[self.currentDocumentIndex]
@@ -387,6 +419,7 @@ class ApplicationWindow(QMainWindow):
                     numPages = linkBlock['Blocks'] - 1
                 if data['open as'] == "document":
                     document = spectivedocument.spectiveDocument(linkBlock['Title'])
+                    document.fileName = data["File Name"]
                     self._mainWidget.currentChanged.disconnect()
                     self._mainWidget.addTab(document, linkBlock['Title'])
                     self._mainWidget.setCurrentIndex(len(self.documents))
@@ -490,13 +523,7 @@ class ApplicationWindow(QMainWindow):
         dgl = exportdialog.exportDialog()
         if dgl.exec():
             data = dgl.getData()
-            fileName, fileTypeFilter = QFileDialog.getSaveFileName(self, "Export Current View", QDir.homePath(), self.tr("Portable Network Graphic (*.png);;Portable Document Format (*.pdf);;Scalable Vector Graphics (*.svg);; Encapsulated PostScript (*.eps);;Tagged Image File Format (*.tif)"))
-            if fileName:
-                m = re.search(r"\*(\.\w{3})", fileTypeFilter, re.IGNORECASE)
-                if not fileName.endswith(m.group(1)):
-                    fileName += m.group(1)
-                w = self._mainWidget.currentWidget()
-                w.figure.savefig(fileName, dpi=data["dpi"])
+            self.documents[self.currentDocumentIndex].pages[self.currentPageIndex].saveAsImage(data)
     
     def changeMode(self, a):
         if a == self.zoomAction:
@@ -626,6 +653,9 @@ class ApplicationWindow(QMainWindow):
         self.currentPageIndex = index
         self.showSpectraInDock()
         self.documents[self.currentDocumentIndex].goToPage(index)
+        spectrum = self.documents[self.currentDocumentIndex].pages[index].spectra[0]
+        if type(spectrum).__name__ == "xrfSpectrum":
+            self.xrfDock.setSpectrum(spectrum)
         
     def closeDocument(self, index):
         if index == self.currentDocumentIndex:
@@ -704,7 +734,10 @@ class ApplicationWindow(QMainWindow):
     
     def pageDelete(self, row):
         document = self.documents[self.currentDocumentIndex]
-        self.currentPageIndex = document.deletePage(row)
+        delP = document.deletePage(row)
+        print(delP)
+        if delP:
+            self.pageChanged(delP)
         self.showPagesInDock()
         
     
@@ -781,10 +814,12 @@ class ApplicationWindow(QMainWindow):
         self.showSpectraInDock()
         
     def substractSpectra(self):
+        document = self.documents[self.currentDocumentIndex]
         page = self.documents[self.currentDocumentIndex].pages[self.currentPageIndex]
-        dgl = processdocks.substractionDialog(page)
+        dgl = processdocks.substractionDialog(document, self.currentPageIndex)
         if dgl.exec():
             data = dgl.getData()
+            data['Target Page'] -= 1
             minuend = None
             subtrahend = None
             for s in page.spectra:
@@ -796,6 +831,28 @@ class ApplicationWindow(QMainWindow):
                 return
             if type(minuend).__name__ == "ramanSpectrum":
                 newSpectrum = spectratypes.ramanSpectrum()
+                newSpectrum.metadata = copy.deepcopy(minuend.metadata)
+            else:
+                return
+            scale = 1.0
+            if data['Scaled']:
+                maxX = subtrahend.x[np.argmax(subtrahend.y)]
+                maxY = np.max(subtrahend.y)
+                for i in range(1, len(minuend.x)):
+                    if minuend.x[i-1] < maxX and minuend.x[i] > maxX:
+                        m = (minuend.y[i] - minuend.y[i-1]) / (minuend.x[i] - minuend.x[i-1])
+                        n = minuend.y[i] - m * minuend.x[i]
+                        scale = (m * maxX + n) / maxY
+                        break
+                    elif minuend.x[i-1] == maxX:
+                        scale = minuend.y[i-1] / maxY
+                        break
+                    elif minuend.x[i] == maxX:
+                        scale = minuend.y[i] / maxY
+                        break
+                if scale > 1:
+                    scale = 1
+                
             if data['Abscissa'] == "Minuend":
                 newSpectrum.x = minuend.x.copy()
                 for x in range(len(minuend.x)):
@@ -803,13 +860,13 @@ class ApplicationWindow(QMainWindow):
                         if (subtrahend.x[i-1] < minuend.x[x] and subtrahend.x[i] > minuend.x[x]) or (subtrahend.x[i-1] > minuend.x[x] and subtrahend.x[i] < minuend.x[x]):
                             m = (subtrahend.y[i] - subtrahend.y[i-1]) / (subtrahend.x[i] - subtrahend.x[i-1])
                             n = subtrahend.y[i] - m * subtrahend.x[i]
-                            newSpectrum.y.append(minuend.x[x] - (m*minuend.x[x]+n))
+                            newSpectrum.y.append(minuend.x[x] - (m*minuend.x[x]+n) * scale)
                             break
                         if subtrahend.x[i-1] == minuend.x[x]:
-                            newSpectrum.y.append(minuend.y[x] - subtrahend.y[i-1])
+                            newSpectrum.y.append(minuend.y[x] - subtrahend.y[i-1] * scale)
                             break
                         if subtrahend.x[i] == minuend.x[x]:
-                            newSpectrum.y.append(minuend.y[x] - subtrahend.y[i])
+                            newSpectrum.y.append(minuend.y[x] - subtrahend.y[i] * scale)
                             break
             if data['Abscissa'] == "Subtrahend":
                 newSpectrum.x = subtrahend.x.copy()
@@ -818,24 +875,30 @@ class ApplicationWindow(QMainWindow):
                         if (minuend.x[i-1] < subtrahend.x[x] and minuend.x[i] > subtrahend.x[x]) or (minuend.x[i-1] > subtrahend.x[x] and minuend.x[i] < subtrahend.x[x]):
                             m = (minuend.y[i] - minuend.y[i-1]) / (minuend.x[i] - minuend.x[i-1])
                             n = minuend.y[i] - m * minuend.x[i]
-                            newSpectrum.y.append((m*subtrahend.x[x]+n) - subtrahend.x[x])
+                            newSpectrum.y.append((m*subtrahend.x[x]+n) - subtrahend.x[x] * scale)
                             break
                         if minuend.x[i-1] == subtrahend.x[x]:
-                            newSpectrum.y.append(minuend.y[i-1] - subtrahend.y[x])
+                            newSpectrum.y.append(minuend.y[i-1] - subtrahend.y[x] * scale)
                             break
                         if minuend.x[i] == subtrahend.x[x]:
-                            newSpectrum.y.append(minuend.y[i] - subtrahend.y[x])
+                            newSpectrum.y.append(minuend.y[i] - subtrahend.y[x] * scale)
                             break
             newSpectrum.y = np.array(newSpectrum.y)
             newSpectrum.title = data['Minuend'] + " - " + data['Subtrahend']
-            document = self.documents[self.currentDocumentIndex]
-            document.addPage("plot")
-            document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
-            document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
-            self.currentPageIndex = len(document.pages) - 1
+            if data['Scaled']:
+                newSpectrum.title += " (scaled)"
+            
+            newSpectrum.metadata["Core Data"]["Title"] = newSpectrum.title
+            newSpectrum.metadata["Sampling Information"]["Data Processing"] += "\r\ņSubstraction of " + newSpectrum.title
+            newSpectrum.metadata["Sampling Information"]["Data Processing"] = newSpectrum.metadata["Sampling Information"]["Data Processing"].strip()
+            if data['Target Page'] == -1:
+                document.addPage("plot")
+                self.currentPageIndex = len(document.pages) - 1
+                document.pages[data['Target Page']].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                document.pages[data['Target Page']].plotWidget.plotChanged.connect(self.showPagesInDock)
             newSpectrum.xlim = [np.min(newSpectrum.x), np.max(newSpectrum.x)]
             newSpectrum.ylim = [np.min(newSpectrum.y), np.max(newSpectrum.y)]
-            document.pages[-1].addSpectrum(newSpectrum)
+            document.pages[data['Target Page']].addSpectrum(newSpectrum)
             self.showSpectraInDock()
             self.showPagesInDock()
             

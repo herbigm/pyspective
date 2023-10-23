@@ -16,7 +16,8 @@ from PyQt6.QtWidgets import (
     QDockWidget,
     QWidget,
     QPushButton,
-    QMenu
+    QMenu,
+    QAbstractItemView
 )
 
 class pageView(QListWidget):
@@ -29,10 +30,14 @@ class pageView(QListWidget):
         super(pageView, self).__init__(parent=parent)
         
         self.setViewMode(QListWidget.ViewMode.IconMode)
-        self.setFlow(QListView.Flow.TopToBottom)
-        self.setResizeMode(QListView.ResizeMode.Adjust)
+        self.setFlow(QListView.Flow.LeftToRight)
+        self.setResizeMode(QListView.ResizeMode.Fixed)
         self.setIconSize(QSize(200,200))
+        self.setGridSize(QSize(200,200))
         self.installEventFilter(self)
+        self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         
     def resizeEvent(self, e):
         self.setIconSize(QSize(int(e.size().width()*0.95), int(e.size().width()*0.95)))

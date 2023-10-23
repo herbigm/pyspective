@@ -607,7 +607,7 @@ class XrfDock(QDockWidget):
                 for line in self.ElementLines[element]['Lines']:
                     d = peak*1000 - line['Energy']
                     d **= 2
-                differences.append([element + " " + line['symbolSiegbahn'], round(line['Energy'] / 1000.0, 2), line['rel. Intensity'], d])
+                    differences.append([element + " " + line['symbolSiegbahn'], round(line['Energy'] / 1000.0, 2), line['rel. Intensity'], d])
             differences = sorted(differences, key=lambda d: d[3])
             
             guess += "Element guess for peak at " + str(round(peak, 2)) + " keV\n"
@@ -615,6 +615,8 @@ class XrfDock(QDockWidget):
             for i in range(10):
                 guess += differences[i][0] + "\t" + str(differences[i][1]) + "\t" + str(differences[i][2]) + "\n"
             guess += "\n"
+            while len(differences) > 0:
+                differences.pop()
         dgl.output.setPlainText(guess)
         dgl.exec()
         
@@ -689,7 +691,7 @@ class XrfElementGuessDialog(QDialog):
         self.setLayout(self.layout)
         
 class substractionDialog(QDialog):
-    def __init__(self, page, parent=None):
+    def __init__(self, document, currentPageIndex, parent=None):
         super(substractionDialog, self).__init__(parent)
         self.setWindowTitle("Substraction Dialog")
                 
@@ -698,11 +700,13 @@ class substractionDialog(QDialog):
         self.buttonBox.accepted.connect(self.accept)
         self.buttonBox.rejected.connect(self.reject)
 
+        page = document.pages[currentPageIndex]
+
         self.layout = QGridLayout()
         
         self.layout.addWidget(QLabel(self.tr("Minuend")), 0, 0, 1, 1)
         self.layout.addWidget(QLabel(" - "), 0, 1, 1, 1)
-        self.layout.addWidget(QLabel(self.tr("Strubtrahend")), 0, 2, 1, 1)
+        self.layout.addWidget(QLabel(self.tr("Stubtrahend")), 0, 2, 1, 1)
         
         self.minuendCombo = QComboBox()
         for spectrum in page.spectra:
@@ -721,7 +725,17 @@ class substractionDialog(QDialog):
         self.subtrahendRadio = QRadioButton()
         self.layout.addWidget(self.subtrahendRadio, 2, 2, 1, 1)
         
-        self.layout.addWidget(self.buttonBox, 3, 0, 1, 3)
+        self.layout.addWidget(QLabel(self.tr("Add to Page")), 3, 0, 1, 1)
+        self.targetPageCombo = QComboBox()
+        self.targetPageCombo.addItem(self.tr("New Page"))
+        for page in document.pages:
+            self.targetPageCombo.addItem(page.title)
+        self.layout.addWidget(self.targetPageCombo, 3, 1, 1, 2)
+        
+        self.scaleCkeckBox = QCheckBox(self.tr("Scale according to the maximum of the subtrahend"))
+        self.layout.addWidget(self.scaleCkeckBox, 4, 0, 1, 3)
+        
+        self.layout.addWidget(self.buttonBox, 5, 0, 1, 3)
         self.setLayout(self.layout)
         
     def getData(self):
@@ -732,4 +746,6 @@ class substractionDialog(QDialog):
             data['Abscissa'] = 'Minuend'
         else:
             data['Abscissa'] = 'Subtrahend'
+        data['Target Page'] = self.targetPageCombo.currentIndex()
+        data['Scaled'] = self.scaleCkeckBox.isChecked()
         return data
