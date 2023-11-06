@@ -154,6 +154,7 @@ class Spectrum:
         xFactor = 1
         yFactor = 1
         deltaX = None
+        npoints = 0
         i = 0
         while i < len(lines):
             line = lines[i].strip()
@@ -281,13 +282,38 @@ class Spectrum:
                         # parse the data until ##END=
                         if not deltaX:
                             deltaX = (lastx - firstx) / (npoints - 1)
-                        i += 1
-                        while not lines[i].startswith("##"):
-                            values = lines[i].split()
-                            for v in range(1, len(values)):
-                                self.x.append((float(values[0]) + (v-1)*deltaX) * xFactor)
-                                self.y.append(float(values[v]) * yFactor)
+                        if npoints > 0:
+                            self.x = np.zeros(npoints)
+                            self.y = np.zeros(npoints)
                             i += 1
+                            idx = 0
+                            while not lines[i].startswith("##"):
+                                values = lines[i].split()
+                                for v in range(1, len(values)):
+                                    self.x[idx] = ((float(values[0]) + (v-1)*deltaX) * xFactor)
+                                    self.y[idx] = (float(values[v]) * yFactor)
+                                    idx += 1
+                                i += 1
+                        else:
+                            # points unknown!
+                            i += 1
+                            start = i
+                            valueCount = 0
+                            while not lines[i].startswith("##"): # loop to get the number of data points
+                                values = lines[i].split()
+                                valueCount += len(values) - 1
+                                i += 1
+                            end = i
+                            # initiate data arrays
+                            self.x = np.zeros(valueCount)
+                            self.y = np.zeros(valueCount)
+                            idx = 0
+                            for lineIdx in range(start, end):
+                                values = lines[lineIdx].split()
+                                for v in range(1, len(values)):
+                                    self.x[idx] = ((float(values[0]) + (v-1)*deltaX) * xFactor)
+                                    self.y[idx] = (float(values[v]) * yFactor)
+                                    idx += 1
                         i -= 1
                         self.x = np.array(self.x)
                         self.y = np.array(self.y)

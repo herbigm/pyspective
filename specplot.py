@@ -313,20 +313,46 @@ class specplot(FigureCanvas):
             if type(spec).__name__ == 'powderXRD':
                 currentYlim = self.ax.get_ylim()
                 ymin = currentYlim[0]
-                if len(spec.references) > 0:
-                    if currentYlim[0] >= 0:
-                        ymin = -(spec.ylim[1] - spec.ylim[0])/10
-                        self.ax.set_ylim(ymin, currentYlim[1])
-                        spec.ylim[0] = ymin
-                        self.fullYlim[0] = ymin
-                else:
-                    spec.ylim[0] = np.min(spec.y)
-                    self.ax.set_ylim(spec.ylim[0], currentYlim[1]) # remove space under the graph if no references are present
-                    self.fullYlim[0] = spec.ylim[0]
                 for ref in spec.references:
-                    if not ref['Display']:
-                        continue
-                    self.ax.vlines(ref['x'], ymin, 0, colors=ref['Color'], label=ref['Title'])
+                    if not ref['Display'] or ref['Display'] == "do not display":
+                        spec.ylim[0] = np.min(spec.y)
+                        self.ax.set_ylim(spec.ylim[0], currentYlim[1]) # remove space under the graph if no references are present
+                        self.fullYlim[0] = spec.ylim[0]
+                    elif ref['Display'] == 'display without intenities':
+                        if currentYlim[0] >= 0:
+                            ymin = -(spec.ylim[1] - spec.ylim[0])/10
+                            self.ax.set_ylim(ymin, currentYlim[1])
+                            spec.ylim[0] = ymin
+                            self.fullYlim[0] = ymin
+                        self.ax.vlines(ref['x'], ymin, 0, colors=ref['Color'], label=ref['Title'])
+                    elif ref['Display'] == 'display with intensity':
+                        # dispaly reference with intensity
+                        maxY = max(ref['y'])
+                        maxIndex = ref['y'].index(maxY)
+                        XatMaxY = ref['x'][maxIndex]
+                        measuredY = 1
+                        # suche nach dem am Messwert möglichst nahe am Theoriewert
+                        for idx in range(1, len(spec.x)):
+                            if XatMaxY > spec.x[idx - 1] and XatMaxY < spec.x[idx]:
+                                m = (spec.y[idx] - spec.y[idx-1])/(spec.x[idx] - spec.x[idx-1])
+                                n = -m * spec.x[idx] + spec.y[idx]
+                                measuredY = m * XatMaxY + n
+                                break
+                            elif XatMaxY == spec.x[idx - 1]:
+                                measuredY = spec.y[idx - 1]
+                                break
+                            elif XatMaxY == spec.x[idx]:
+                                measuredY = spec.y[idx]
+                                break
+                            
+                        minHeight = 0.1 * np.max(spec.y)
+                        if measuredY < minHeight:
+                            print("rescaled")
+                            measuredY = minHeight
+                        # Skalierungsfaktor berechnen
+                        factor = measuredY / maxY
+                        # Alle Linien skalieren und anzeigen
+                        self.ax.vlines(ref['x'], 0, np.array(ref['y']) * factor, colors=ref['Color'], label=ref['Title'])
             elif type(spec).__name__ == 'xrfSpectrum':
                 self.ElementLines = self.settings.value("XRFElementLines")
                 for ref in spec.references:

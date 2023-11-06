@@ -362,20 +362,20 @@ class XrdDock(QDockWidget):
                 elif lines[0].strip().lower() == "h	k	l	2theta	d-value	mult	intensity":
                     for line in lines[1:]:
                         parts = line.split()
-                        y.append(float(parts[5]))
+                        y.append(float(parts[6]))
                         x.append(float(parts[3]))
-                # make x unique
-                newX = [0]
-                newY = [0]
-                for i in range(len(x)):
-                    if x[i] != newX[-1]:
-                        newX.append(x[i])
-                        newY.append(y[i])
-                    else:
-                        newY[-1] += y[i]
+                # # make x unique
+                # newX = [0]
+                # newY = [0]
+                # for i in range(len(x)):
+                #     if x[i] != newX[-1]:
+                #         newX.append(x[i])
+                #         newY.append(y[i])
+                #     else:
+                #         newY[-1] += y[i]
                 ref = {}
-                ref['x'] = newX[1:]
-                ref['y'] = newY[1:]
+                ref['x'] = x# newX[1:]
+                ref['y'] = y# newY[1:]
                 ref['Color'] = data['Color']
                 ref['Title'] = data['Title']
                 ref['Display'] = data['Display']
@@ -456,9 +456,9 @@ class XrdReferenceDialog(QDialog):
         self.layout.addWidget(self.colorButton, 2, 1, 1, 2)
         
         self.layout.addWidget(QLabel('Display: '), 3, 0, 1, 1)
-        self.displayCheck = QCheckBox(self)
-        self.displayCheck.setChecked(True)
-        self.layout.addWidget(self.displayCheck, 3, 1, 1, 2)
+        self.displayCombo = QComboBox()
+        self.displayCombo.addItems(['display without intenities', 'display with intensity', 'do not display'])
+        self.layout.addWidget(self.displayCombo, 3, 1, 1, 2)
                 
         self.layout.addWidget(self.buttonBox, 4, 0, 1, 3)
         self.setLayout(self.layout)
@@ -471,7 +471,7 @@ class XrdReferenceDialog(QDialog):
         data['File Name'] = self.fileNameLabel.text()
         data['Title'] = self.titleEdit.text()
         data['Color'] = self.color
-        data['Display'] = self.displayCheck.isChecked()
+        data['Display'] = self.displayCombo.currentText()
         return data
     
     def setData(self, data):
@@ -480,7 +480,9 @@ class XrdReferenceDialog(QDialog):
         self.fileNameButton.hide()
         
         self.titleEdit.setText(data['Title'])
-        self.displayCheck.setChecked(data['Display'])
+        if type(data['Display']) == bool:
+            data['Display'] = 'display without intenities'
+        self.displayCombo.setCurrentText(data['Display'])
         pix = QPixmap(QSize(32,32))
         pix.fill(QColor.fromString(data['Color']))
         self.colorButton.setIcon(QIcon(pix))

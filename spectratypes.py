@@ -9,6 +9,7 @@ Created on Sat Apr  8 11:10:47 2023
 import spectrum
 import json
 import os
+import datetime
 
 import numpy as np
 from scipy import stats
@@ -209,6 +210,11 @@ class xrfSpectrum(spectrum.Spectrum):
                         Number = []
                 Number="".join(Number)
                 CaliEnergy.append(float(str(Number[:-1])))
+            elif lines[currentLine].strip().startswith("START_TIME"):
+                print(lines[currentLine][13:])
+                self.metadata["Notes"]["Date Time"] = datetime.datetime.strptime(lines[currentLine][13:].strip(), "%m/%d/%Y %H:%M:%S")
+                currentLine += 1
+                
             elif lines[currentLine].strip() == "<<DATA>>":
                 currentLine += 1
                 while currentLine < len(lines):
