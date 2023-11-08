@@ -270,7 +270,7 @@ class specplot(FigureCanvas):
                     linesX = []
                     linesYmax = []
                     for line in self.ElementLines[ref]['Lines']:
-                        if line['Energy'] < spec.xlim[1] * 1000 and line['Energy'] > spec.xlim[0] * 1000:
+                        if line['Energy'] < self.figureData['fullXLim'][1] * 1000 and line['Energy'] > self.figureData['fullXLim'][0] * 1000:
                             if line['rel. Intensity'] > maxIntens:
                                 maxIntens = line['rel. Intensity']
                                 for i in range(1, len(spec.x)):

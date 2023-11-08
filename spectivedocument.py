@@ -68,11 +68,11 @@ class spectiveDocument:
                         if not pageInfoSet:
                             c += "\r\n##$PAGE TITLE=" + self.pages[p].figureData['PageTitle']
                             c += "\r\n##$PLOT TITLE=" + self.pages[p].figureData['PageTitle']
-                            c += "\r\n##$XLABEL=" + s.xlabel
-                            c += "\r\n##$YLABEL=" + s.ylabel
-                            c += "\r\n##$XLIM=" + json.dumps(self.pages[p].plotWidget.ax.get_xlim())
-                            c += "\r\n##$YLIM=" + json.dumps(self.pages[p].plotWidget.ax.get_ylim())
-                            c += "\r\n##$LEGEND=" + self.pages[p].plotWidget.legend
+                            c += "\r\n##$XLABEL=" + self.pages[p].figureData['XLabel']
+                            c += "\r\n##$YLABEL=" + self.pages[p].figureData['YLabel']
+                            c += "\r\n##$XLIM=" + json.dumps(self.pages[p].figureData['XLim'])
+                            c += "\r\n##$YLIM=" + json.dumps(self.pages[p].figureData['YLim'])
+                            c += "\r\n##$LEGEND=" + self.pages[p].figureData['Legend']
                             pageInfoSet = True
                         f.write(s.getAsJCAMPDX(c))
                 f.write("\r\n")
