@@ -693,7 +693,7 @@ class XrfElementGuessDialog(QDialog):
         self.setLayout(self.layout)
         
 class substractionDialog(QDialog):
-    def __init__(self, document, currentPageIndex, parent=None):
+    def __init__(self, document, parent=None):
         super(substractionDialog, self).__init__(parent)
         self.setWindowTitle("Substraction Dialog")
                 
@@ -702,7 +702,7 @@ class substractionDialog(QDialog):
         self.buttonBox.accepted.connect(self.accept)
         self.buttonBox.rejected.connect(self.reject)
 
-        page = document.pages[currentPageIndex]
+        page = document.currentPage
 
         self.layout = QGridLayout()
         

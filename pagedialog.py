@@ -6,21 +6,15 @@ Created on Thu Jul 27 07:59:29 2023
 @author: marcus
 """
 
-from PyQt6 import QtCore, QtGui
-from PyQt6.QtGui import QAction, QIcon, QDoubleValidator
-from PyQt6.QtCore import QDir
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QGridLayout,
     QLabel,
     QComboBox,
-    QSpinBox,
     QCheckBox,
     QLineEdit
 )
-import json
-import os.path
 
 import numpy as np
 
@@ -28,9 +22,7 @@ class pageDialog(QDialog):
     def __init__(self, parent=None):
         super(pageDialog, self).__init__(parent)
         self.setWindowTitle("Page Options")
-        
-        self.settings = QtCore.QSettings('TUBAF', 'pySpective')
-        
+                
         Buttons = QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         self.buttonBox = QDialogButtonBox(Buttons)
         self.buttonBox.accepted.connect(self.accept)
@@ -81,13 +73,9 @@ class pageDialog(QDialog):
         self.legendCombo.addItems(['No Legend', 'best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center'])
         self.layout.addWidget(self.legendCombo, 9,1, 1, 3)
         
-        
         self.layout.addWidget(self.buttonBox, 10, 0, 1, 4)
         self.setLayout(self.layout)
         
-        if self.settings.value("lastFigureOptions"): # load old settings if present
-            lastFigureOptions = self.settings.value("lastFigureOptions")
-            self.setData(lastFigureOptions)
   
     def getData(self):
         data = {}
@@ -96,12 +84,14 @@ class pageDialog(QDialog):
         data["YLabel"] = self.yLabelEdit.text()
         data["XUnit"] = self.xUnitCombo.currentText()
         data["YUnit"] = self.yUnitCombo.currentText()
-        data["Xlim"] = [float(self.xRangeLower.text().replace(",", ".")), float(self.xRangeUpper.text().replace(",", "."))]
-        data["Ylim"] = [float(self.yRangeLower.text()), float(self.yRangeUpper.text())]
-        data["Title"] = self.titleEdit.text()
+        data["XLim"] = [float(self.xRangeLower.text().replace(",", ".")), float(self.xRangeUpper.text().replace(",", "."))]
+        data["YLim"] = [float(self.yRangeLower.text()), float(self.yRangeUpper.text())]
+        data["PlotTitle"] = self.titleEdit.text()
         data["PageTitle"] = self.pageTitleEdit.text()
-        data['Legend'] = self.legendCombo.currentText()
-        self.settings.setValue("lastFigureOptions", data)
+        if self.legendCombo.currentText() == "No Legend":
+            data['Legend'] = ""
+        else:
+            data['Legend'] = self.legendCombo.currentText()
         return data
     
     def setData(self, data):
@@ -121,14 +111,14 @@ class pageDialog(QDialog):
                 self.yUnitCombo.clear()
                 self.yUnitCombo.addItems(opticalUnitsY)
             self.yUnitCombo.setCurrentText(data["YUnit"])
-        if "Xlim" in data:
-            self.xRangeLower.setText(str(data["Xlim"][0]))
-            self.xRangeUpper.setText(str(data["Xlim"][1]))
-        if "Ylim" in data:
-            self.yRangeLower.setText(str(data["Ylim"][0]))
-            self.yRangeUpper.setText(str(data["Ylim"][1]))
-        if "Title" in data:
-            self.titleEdit.setText(data["Title"])
+        if "XLim" in data:
+            self.xRangeLower.setText(str(data["XLim"][0]))
+            self.xRangeUpper.setText(str(data["XLim"][1]))
+        if "YLim" in data:
+            self.yRangeLower.setText(str(data["YLim"][0]))
+            self.yRangeUpper.setText(str(data["YLim"][1]))
+        if "PlotTitle" in data:
+            self.titleEdit.setText(data["PlotTitle"])
         if "PageTitle" in data:
             self.pageTitleEdit.setText(data["PageTitle"])
         if "Legend" in data:
@@ -142,41 +132,41 @@ class pageDialog(QDialog):
         tmp = self.xRangeLower.text()
         self.xRangeLower.setText(self.xRangeUpper.text())
         self.xRangeUpper.setText(tmp)
-        self.oldData["Xlim"][0], self.oldData["Xlim"][1] = self.oldData["Xlim"][1], self.oldData["Xlim"][0] 
+        self.oldData["XLim"][0], self.oldData["XLim"][1] = self.oldData["XLim"][1], self.oldData["XLim"][0] 
     
     def changeAbscissa(self, new):
         if not self.oldData:
             return
         if new == "NANOMETERS":
             if self.oldData["XUnit"] == "1/CM":
-                self.xRangeLower.setText(str(1e7 / self.oldData["Xlim"][0]))
-                self.xRangeUpper.setText(str(1e7 / self.oldData["Xlim"][1]))
+                self.xRangeLower.setText(str(1e7 / self.oldData["XLim"][0]))
+                self.xRangeUpper.setText(str(1e7 / self.oldData["XLim"][1]))
             elif self.oldData["XUnit"] == "MICROMETERS":
-                self.xRangeLower.setText(str(self.oldData["Xlim"][0] * 1e3))
-                self.xRangeUpper.setText(str(self.oldData["Xlim"][1] * 1e3))
+                self.xRangeLower.setText(str(self.oldData["XLim"][0] * 1e3))
+                self.xRangeUpper.setText(str(self.oldData["XLim"][1] * 1e3))
             else:
-                self.xRangeLower.setText(str(self.oldData["Xlim"][0]))
-                self.xRangeUpper.setText(str(self.oldData["Xlim"][1]))
+                self.xRangeLower.setText(str(self.oldData["XLim"][0]))
+                self.xRangeUpper.setText(str(self.oldData["XLim"][1]))
         elif new == "MICROMETERS":
             if self.oldData["XUnit"] == "1/CM":
-                self.xRangeLower.setText(str(1e4 / self.oldData["Xlim"][0]))
-                self.xRangeUpper.setText(str(1e4 / self.oldData["Xlim"][1]))
+                self.xRangeLower.setText(str(1e4 / self.oldData["XLim"][0]))
+                self.xRangeUpper.setText(str(1e4 / self.oldData["XLim"][1]))
             elif self.oldData["XUnit"] == "NANOMETERS":
-                self.xRangeLower.setText(str(self.oldData["Xlim"][0] * 1e-3))
-                self.xRangeUpper.setText(str(self.oldData["Xlim"][1] * 1e-3))
+                self.xRangeLower.setText(str(self.oldData["XLim"][0] * 1e-3))
+                self.xRangeUpper.setText(str(self.oldData["XLim"][1] * 1e-3))
             else:
-                self.xRangeLower.setText(str(self.oldData["Xlim"][0]))
-                self.xRangeUpper.setText(str(self.oldData["Xlim"][1]))
+                self.xRangeLower.setText(str(self.oldData["XLim"][0]))
+                self.xRangeUpper.setText(str(self.oldData["XLim"][1]))
         elif new == "1/CM":
             if self.oldData["XUnit"] == "MICROMETERS":
-                self.xRangeLower.setText(str(1e4 / self.oldData["Xlim"][0]))
-                self.xRangeUpper.setText(str(1e4 / self.oldData["Xlim"][1]))
+                self.xRangeLower.setText(str(1e4 / self.oldData["XLim"][0]))
+                self.xRangeUpper.setText(str(1e4 / self.oldData["XLim"][1]))
             elif self.oldData["XUnit"] == "NANOMETERS":
-                self.xRangeLower.setText(str(1e7 / self.oldData["Xlim"][0]))
-                self.xRangeUpper.setText(str(1e7 / self.oldData["Xlim"][1]))
+                self.xRangeLower.setText(str(1e7 / self.oldData["XLim"][0]))
+                self.xRangeUpper.setText(str(1e7 / self.oldData["XLim"][1]))
             else:
-                self.xRangeLower.setText(str(self.oldData["Xlim"][0]))
-                self.xRangeUpper.setText(str(self.oldData["Xlim"][1]))
+                self.xRangeLower.setText(str(self.oldData["XLim"][0]))
+                self.xRangeUpper.setText(str(self.oldData["XLim"][1]))
         self.xLabelEdit.setText(new)
     
     def changeOrdinate(self, new):
@@ -186,30 +176,30 @@ class pageDialog(QDialog):
             if self.oldData["YUnit"] == "REFLECTANCE":
                 pass # nothing to do!
             elif self.oldData["YUnit"] == "ABSORBANCE":
-                self.yRangeLower.setText(str(round(10 ** -(self.oldData["Ylim"][1])*100,2)))
-                self.yRangeUpper.setText(str(round(10 ** -(self.oldData["Ylim"][0])*100,2)))
+                self.yRangeLower.setText(str(round(10 ** -(self.oldData["YLim"][1])*100,2)))
+                self.yRangeUpper.setText(str(round(10 ** -(self.oldData["YLim"][0])*100,2)))
             else:
-                self.yRangeLower.setText(str(self.oldData["Ylim"][0]))
-                self.yRangeUpper.setText(str(self.oldData["Ylim"][1]))
+                self.yRangeLower.setText(str(self.oldData["YLim"][0]))
+                self.yRangeUpper.setText(str(self.oldData["YLim"][1]))
         elif new == "REFLECTANCE":
             if self.oldData["YUnit"] == "TRANSMITTANCE":
                 pass # nothing to do!
             elif self.oldData["YUnit"] == "ABSORBANCE":
-                self.yRangeLower.setText(str(round(10 ** -(self.oldData["Ylim"][1])*100,2)))
-                self.yRangeUpper.setText(str(round(10 ** -(self.oldData["Ylim"][0])*100,2)))
+                self.yRangeLower.setText(str(round(10 ** -(self.oldData["YLim"][1])*100,2)))
+                self.yRangeUpper.setText(str(round(10 ** -(self.oldData["YLim"][0])*100,2)))
             else:
-                self.yRangeLower.setText(str(self.oldData["Ylim"][0]))
-                self.yRangeUpper.setText(str(self.oldData["Ylim"][1]))
+                self.yRangeLower.setText(str(self.oldData["YLim"][0]))
+                self.yRangeUpper.setText(str(self.oldData["YLim"][1]))
         elif new == "ABSORBANCE":
             if self.oldData["YUnit"] == "REFLECTANCE":
-                self.yRangeLower.setText(str(-np.log10(self.oldData["Ylim"][1]/100)))
-                self.yRangeUpper.setText(str(-np.log10(self.oldData["Ylim"][0]/100)))
+                self.yRangeLower.setText(str(-np.log10(self.oldData["YLim"][1]/100)))
+                self.yRangeUpper.setText(str(-np.log10(self.oldData["YLim"][0]/100)))
             elif self.oldData["YUnit"] == "TRANSMITTANCE":
-                self.yRangeLower.setText(str(-np.log10(self.oldData["Ylim"][1]/100)))
-                self.yRangeUpper.setText(str(-np.log10(self.oldData["Ylim"][0]/100)))
+                self.yRangeLower.setText(str(-np.log10(self.oldData["YLim"][1]/100)))
+                self.yRangeUpper.setText(str(-np.log10(self.oldData["YLim"][0]/100)))
             else:
-                self.yRangeLower.setText(str(self.oldData["Ylim"][0]))
-                self.yRangeUpper.setText(str(self.oldData["Ylim"][1]))
+                self.yRangeLower.setText(str(self.oldData["YLim"][0]))
+                self.yRangeUpper.setText(str(self.oldData["YLim"][1]))
             
         self.yLabelEdit.setText(new)
             

@@ -6,81 +6,42 @@ Created on Thu Aug  3 13:42:51 2023
 @author: marcus
 """
 
-import os
 import json
-import re
 
-from PyQt6.QtWidgets import QWidget
-from PyQt6.QtCore import pyqtSignal, QDir, QSettings
-from PyQt6.QtWidgets import (
-    QVBoxLayout,
-    QFileDialog
-)
-
-from matplotlib.backends.backend_qtagg import FigureCanvas
-from matplotlib.figure import Figure
-from matplotlib.backend_bases import MouseButton
-from matplotlib.patches import Rectangle
-
-import numpy as np
-
-import specplot
 from spectrum import checkLength
-import spectratypes
 
-class spectiveDocument(QWidget):
-    def __init__(self, title = "", parent = None):
-        super(spectiveDocument, self).__init__(parent)
+class spectiveDocument:
+    def __init__(self, title = ""):
         self.pages = []
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-        self.currentPageIndex = None
+        self.currentPage = None
         self.fileName = None
-        
-        self.settings = QSettings('TUBAF', 'pySpective')
         self.title = title
         
-    def addPage(self, pageType):
-        if pageType == "plot":
-            page = spectivePlotPage()
-        
-        self.pages.append(page)
+    def addPage(self):
+        self.pages.append(spectivePage())
         self.pages[-1].title = "Page " + str(len(self.pages))
-        if self.currentPageIndex != None:
-            self.pages[self.currentPageIndex].plotWidget.hide()
-        self.layout.addWidget(self.pages[-1].plotWidget)
-        self.currentPageIndex = len(self.pages) - 1
+        self.currentPage = self.pages[-1]
+        return self.currentPage
     
     def goToPage(self, index):
-        if self.currentPageIndex != None:
-            self.pages[self.currentPageIndex].plotWidget.hide()
-        self.pages[index].plotWidget.show()
-        self.currentPageIndex = index
+        self.currentPage = self.pages[index]
+        return self.currentPage
     
     def deletePage(self, row):
-        plotWidget = self.pages[row].delete()
-        self.layout.removeWidget(plotWidget)
-        self.pages.pop(row)
-        if row >= len(self.pages):
-            self.currentPageIndex =len(self.pages) - 1
-            return len(self.pages) - 1
-        elif len(self.pages) == 0:
-            self.currentPageIndex = None
+        deletedPage = self.pages.pop(row)
+        if len(self.pages) == 0: # no page left, return 0
             return None
-        else:
-            self.currentPageIndex = row
-            return row
+        if deletedPage == self.currentPage and row == 0: # first page was deleted, make the new first page the currentPage
+            self.currentPage = self.pages[0]
+        elif deletedPage == self.currentPage and row > 0: # a middle page was deleted, make the previous page the currentPage
+            self.currentPage = self.pages[row - 1]
+        return self.currentPage # return the current page as pointer
+        
         
     def saveDocument(self, fileName = None):
-        if not self.fileName and not fileName:
-            if self.settings.value("LastSaveDir"):
-                fileName, _ = QFileDialog.getSaveFileName(self, "Save File", self.settings.value("LastSaveDir"), "JCAMP-DX File (*.dx)")
-            else:
-                fileName, _ = QFileDialog.getSaveFileName(self, "Save File", QDir.homePath(), "JCAMP-DX File (*.dx)")
         if not fileName:
             fileName = self.fileName
         if fileName:
-            self.settings.setValue("LastSaveDir", os.path.dirname(fileName))
             if not fileName.endswith(".dx"):
                 fileName += ".dx"
             self.fileName = fileName
@@ -105,8 +66,8 @@ class spectiveDocument(QWidget):
                         f.write("\r\n")
                         c = "##$ON PAGE=" + str(p+1)
                         if not pageInfoSet:
-                            c += "\r\n##$PAGE TITLE=" + self.pages[p].title
-                            c += "\r\n##$PLOT TITLE=" + self.pages[p].plotTitle
+                            c += "\r\n##$PAGE TITLE=" + self.pages[p].figureData['PageTitle']
+                            c += "\r\n##$PLOT TITLE=" + self.pages[p].figureData['PageTitle']
                             c += "\r\n##$XLABEL=" + s.xlabel
                             c += "\r\n##$YLABEL=" + s.ylabel
                             c += "\r\n##$XLIM=" + json.dumps(self.pages[p].plotWidget.ax.get_xlim())
@@ -117,35 +78,22 @@ class spectiveDocument(QWidget):
                 f.write("\r\n")
                 f.write(checkLength("\r\n##END= $$" + self.title))
         
-    def saveSpectrum(self, spectrumIndex, fileName = None):
-        if not fileName:
-            if self.settings.value("LastSaveDir"):
-                fileName, _ = QFileDialog.getSaveFileName(self, "Save File", self.settings.value("LastSaveDir"), "JCAMP-DX File (*.dx)")
-            else:
-                fileName, _ = QFileDialog.getSaveFileName(self, "Save File", QDir.homePath(), "JCAMP-DX File (*.dx)")
+    def saveSpectrum(self, spectrumIndex, fileName):
         if fileName:
-            self.settings.setValue("LastSaveDir", os.path.dirname(fileName))
             if not fileName.endswith(".dx"):
                 fileName += ".dx"
             with open(fileName, "w") as f:
-                page = self.pages[self.currentPageIndex]
-                f.write(page.spectra[spectrumIndex].getAsJCAMPDX())
+                f.write(self.currentPage.currentSpectrum.getAsJCAMPDX())
     
-    def savePage(self, fileName = None):
-        if not fileName:
-            if self.settings.value("LastSaveDir"):
-                fileName, _ = QFileDialog.getSaveFileName(self, "Save File", self.settings.value("LastSaveDir"), "JCAMP-DX File (*.dx)")
-            else:
-                fileName, _ = QFileDialog.getSaveFileName(self, "Save File", QDir.homePath(), "JCAMP-DX File (*.dx)")
+    def savePage(self, fileName):
         if fileName:
-            self.settings.setValue("LastSaveDir", os.path.dirname(fileName))
             if not fileName.endswith(".dx"):
                 fileName += ".dx"
             with open(fileName, "w") as f:
-                page = self.pages[self.currentPageIndex]
+                page = self.currentPage
                 if page.title=="":
                     page.title = "untitled"
-                f.write(checkLength("##TITLE=" + page.title))
+                f.write(checkLength("##TITLE=" + page.figureData['PageTitle']))
                 f.write(checkLength("\r\n##JCAMP-DX=5.01"))
                 f.write(checkLength("\r\n##DATA TYPE=LINK"))
                 f.write(checkLength("\r\n##BLOCKS=" + str(len(page.spectra) + 1)))
@@ -155,149 +103,159 @@ class spectiveDocument(QWidget):
                     f.write("\r\n")
                     f.write(s.getAsJCAMPDX())
                 f.write("\r\n")
-                f.write(checkLength("\r\n##END= $$" + page.title))
+                f.write(checkLength("\r\n##END= $$" + page.figureData['PageTitle']))
         
     def getFigureData(self):
-        page = self.pages[self.currentPageIndex]
-        return page.getFigureData()
+        return self.currentPage.getFigureData()
     
     def setFigureData(self, data):
-        self.pages[self.currentPageIndex].setFigureData(data)     
+        self.currentPage.setFigureData(data)     
     
-    def setMode(self, mode):
-        for p in  self.pages:
-            p.setMode(mode)
+    def getCurrentPageIndex(self):
+        return self.pages.index(self.currentPage)
+
         
 
-class spectivePlotPage(QWidget):
-    def __init__(self, parent = None):
-        super(spectivePlotPage, self).__init__(parent)
-        self.plotWidget = specplot.specplot(self)
-        self.plotWidget.gotIntegrationRange.connect(self.doIntegration)
-        self.layout = QVBoxLayout(self)
-        
-        self.layout.addWidget(self.plotWidget)
-        
-        self.setLayout(self.layout)
+class spectivePage:
+    def __init__(self):
         self.spectra = []
-        self.title = ""
-        self.plotTitle = ""
-        self.currentSpectrumIndex = None
+        self.figureData = {}
+        self.figureData['PageTitle'] = ""
+        self.figureData['PlotTitle'] = ""
+        self.figureData['XLabel'] = ""
+        self.figureData['YLabel'] = ""
+        self.figureData['XUnit'] = ""
+        self.figureData['YUnit'] = ""
+        self.figureData['XLim'] = [0,0]
+        self.figureData['YLim'] = [0,0]
+        self.figureData['Legend'] = ""
+        self.figureData['fullXLim'] = [0,0]
+        self.figureData['fullYLim'] = [0,0]
+        self.icon = None
+        self.currentSpectrum = None
+        
+    def _calculateFullLim(self):
+        # reset xlim and ylim
+        self.figureData['fullXLim'] = [0,0]
+        self.figureData['fullYLim'] = [0,0]
+        for spectrum in self.spectra:
+            if spectrum == self.spectra[0]:
+                # for the first spectrum on this page
+                self.figureData['fullXLim'] = spectrum.xlim.copy()
+                self.figureData['fullYLim'] = spectrum.ylim.copy()
+            else:
+                # update xlim if necessary
+                if self.figureData['fullXLim'][0] > self.figureData['fullXLim'][1]:
+                    if spectrum.xlim[0] < spectrum.xlim[1]: # Spectrum has not the same x-axis orientation as the plot! -> flip it!
+                        spectrum.x = spectrum.x.flip()
+                        spectrum.y = spectrum.y.flip()
+                        spectrum.xlim = spectrum.xlim.flip()
+                    if self.figureData['fullXLim'][0] < spectrum.xlim[0]:
+                        self.figureData['fullXLim'][0] = spectrum.xlim[0]
+                    if self.figureData['fullXLim'][1] > spectrum.xlim[1]:
+                        self.figureData['fullXLim'][1] = spectrum.xlim[1]
+                else:
+                    if spectrum.xlim[0] > spectrum.xlim[1]: # Spectrum has not the same x-axis orientation as the plot! -> flip it!
+                        spectrum.x = spectrum.x.flip()
+                        spectrum.y = spectrum.y.flip()
+                        spectrum.xlim = spectrum.xlim.flip()
+                    if self.figureData['fullXLim'][0] > spectrum.xlim[0]:
+                        self.figureData['fullXLim'][0] = spectrum.xlim[0]
+                    if self.figureData['fullXLim'][1] < spectrum.xlim[1]:
+                        self.figureData['fullXLim'][1] = spectrum.xlim[1]
+                # update ylim if necessary
+                if self.figureData['fullYLim'][0] > self.figureData['fullYLim'][1]:
+                    if spectrum.ylim[0] < spectrum.ylim[1]: # Spectrum has not the same x-axis orientation as the plot! -> flip it!
+                        spectrum.x = spectrum.x.flip()
+                        spectrum.y = spectrum.y.flip()
+                        spectrum.xlim = spectrum.xlim.flip()
+                    if self.figureData['fullYLim'][0] < spectrum.ylim[0]:
+                        self.figureData['fullYLim'][0] = spectrum.ylim[0]
+                    if self.figureData['fullYLim'][1] > spectrum.ylim[1]:
+                        self.figureData['fullYLim'][1] = spectrum.ylim[1]
+                else:
+                    if spectrum.ylim[0] > spectrum.ylim[1]: # Spectrum has not the same x-axis orientation as the plot! -> flip it!
+                        spectrum.x = spectrum.x.flip()
+                        spectrum.y = spectrum.y.flip()
+                        spectrum.xlim = spectrum.xlim.flip()
+                    if self.figureData['fullYLim'][0] > spectrum.ylim[0]:
+                        self.figureData['fullYLim'][0] = spectrum.ylim[0]
+                    if self.figureData['fullYLim'][1] < spectrum.ylim[1]:
+                        self.figureData['fullYLim'][1] = spectrum.ylim[1]
         
     def addSpectrum(self, spectrum):
         self.spectra.append(spectrum)
-        self.spectra[-1].color = self.plotWidget.addSpectrum(spectrum)
+        self._calculateFullLim()
+        if len(self.spectra) == 1:
+            # only for the first spectrum
+            self.figureData['XLim'] = self.figureData['fullXLim'].copy()
+            self.figureData['YLim'] = self.figureData['fullYLim'].copy()
         if spectrum.displayData['Plot Title'] != "":
-            self.plotWidget.supTitle = spectrum.displayData['Plot Title']
-            self.plotTitle = spectrum.displayData['Plot Title']
+            self.figureData['PlotTitle'] = spectrum.displayData['Plot Title']
         if spectrum.displayData['Page Title'] != "":
-            self.title = spectrum.displayData['Page Title']
+            self.figureData['PageTitle'] = spectrum.displayData['Page Title']
         if spectrum.xlabel != "":
-            self.plotWidget.ax.set_xlabel(spectrum.xlabel)
-        if spectrum.ylabel != "":
-            self.plotWidget.ax.set_ylabel(spectrum.ylabel)
-        if spectrum.displayData['xlim']:
-            self.plotWidget.ax.set_xlim(spectrum.displayData['xlim'])
-        if spectrum.displayData['ylim']:
-            self.plotWidget.ax.set_ylim(spectrum.displayData['ylim'])
-        if spectrum.displayData['Legend']:
-            self.plotWidget.legend = spectrum.displayData['Legend']
-        self.currentSpectrumIndex = len(self.spectra) - 1
-        self.plotWidget.updatePlot()
-    
-    def getFigureData(self):
-        data = {}
-        data["XLabel"] = self.plotWidget.ax.get_xlabel()
-        data["YLabel"] = self.plotWidget.ax.get_ylabel()
-        data["XUnit"] = self.plotWidget.XUnit
-        data["YUnit"] = self.plotWidget.YUnit
-        data["Xlim"] = self.plotWidget.ax.get_xlim()
-        data["Ylim"] = self.plotWidget.ax.get_ylim()
-        data["Title"] = self.plotWidget.supTitle
-        data["PageTitle"] = self.title
-        data["Legend"] = self.plotWidget.legend
-        return data
-
-    def setFigureData(self, data):
-        self.title = data["PageTitle"]
-        for s in self.spectra:
-            s.xlabel = data["XLabel"]
-            s.ylabel = data["YLabel"]
-            
-            if issubclass(type(s), spectratypes.opticalSpectrum):
-                fullXlim = s.convertXUnit(data["XUnit"], self.plotWidget.fullXlim.copy())
-                fullYlim = s.convertYUnit(data["YUnit"], self.plotWidget.fullYlim.copy())
-                self.plotWidget.fullXlim = fullXlim
-                self.plotWidget.fullYlim = fullYlim
-                        
-            if data["invertX"]:
-                s.x = np.flip(s.x)
-                s.y = np.flip(s.y)
-        
-        if data["invertX"]:
-            self.plotWidget.fullXlim[0], self.plotWidget.fullXlim[1] = self.plotWidget.fullXlim[1], self.plotWidget.fullXlim[0]
-        self.plotWidget.ax.set_xlabel(data["XLabel"])
-        self.plotWidget.ax.set_ylabel(data["YLabel"])
-        
-        self.plotWidget.XUnit = data["XUnit"]
-        self.plotWidget.YUnit = data["YUnit"]
-        
-        self.plotWidget.ax.set_xlim(data["Xlim"])
-        self.plotWidget.ax.set_ylim(data["Ylim"])
-        
-        self.plotWidget.supTitle = data["Title"]
-        self.plotTitle = data["Title"]
-        
-        if data['Legend'] != "No Legend":
-            self.plotWidget.legend = data["Legend"]
+            self.figureData['XLabel'] = spectrum.xlabel
         else:
-            self.plotWidget.legend = ""
-        
-        self.plotWidget.updatePlot()
-    
-    def updatePlot(self):
-        self.plotWidget.updatePlot()
+            self.figureData['XLabel'] = spectrum.metadata["Spectral Parameters"]["X Units"]
+        if spectrum.ylabel != "":
+            self.figureData['YLabel'] = spectrum.ylabel
+        else:
+            self.figureData['YLabel'] = spectrum.metadata["Spectral Parameters"]["Y Units"]
+        if spectrum.displayData['xlim']:
+            self.figureData['XLim'] = spectrum.displayData['xlim'].copy()
+        if spectrum.displayData['ylim']:
+            self.figureData['YLim'] = spectrum.displayData['ylim'].copy()
+        if spectrum.displayData['Legend']:
+            self.figureData['Legend'] = spectrum.displayData['Legend']
+        if spectrum.metadata["Spectral Parameters"]["X Units"] and self.figureData['XUnit'] == "":
+            self.figureData['XUnit'] = spectrum.metadata["Spectral Parameters"]["X Units"]
+        if spectrum.metadata["Spectral Parameters"]["Y Units"] and self.figureData['YUnit'] == "":
+            self.figureData['YUnit'] = spectrum.metadata["Spectral Parameters"]["Y Units"]
+        self.currentSpectrum = self.spectra[-1]
+        return self.currentSpectrum
     
     def spectrumDown(self, row):
         self.spectra[row], self.spectra[row + 1] = self.spectra[row + 1], self.spectra[row]
-        self.plotWidget.spectraData[row], self.plotWidget.spectraData[row + 1] = self.plotWidget.spectraData[row + 1], self.plotWidget.spectraData[row]
-        self.updatePlot()
+        return self.spectra[row+1]
     
     def spectrumUp(self, row):
         self.spectra[row], self.spectra[row - 1] = self.spectra[row - 1], self.spectra[row]
-        self.plotWidget.spectraData[row], self.plotWidget.spectraData[row - 1] = self.plotWidget.spectraData[row - 1], self.plotWidget.spectraData[row]
-        self.updatePlot()
+        return self.spectra[row-1]
     
     def deleteSpectrum(self, row):
-        self.spectra.pop(row)
-        self.plotWidget.deleteSpectrum(row)
-        self.plotWidget.updatePlot()
-        if row >= len(self.spectra):
-            return len(self.spectra) - 1
-        elif len(self.spectra) == 0:
-            return None
-        else:
-            return row
-    
-    def setMode(self, mode):
-        self.plotWidget.selectionMode = mode
+        deletedSpectrum = self.spectra.pop(row)
+        self._calculateFullLim()
+        if len(self.spectra) == 0:
+            return 0
+        if deletedSpectrum == self.currentSpectrum and row == 0:
+            self.currentSpectrum = self.spectra[0]
+        elif deletedSpectrum == self.currentSpectrum and row > 0:
+            self.currentSpectrum = self.spectra[row - 1]
+        return self.currentSpectrum
     
     def setCurrentSpectrum(self, index):
-        self.currentSpectrumIndex = index
-        self.plotWidget.currentSpectrumIndex = index
+        self.currentSpectrum = self.spectra[index]
+        return self.currentSpectrum
     
     def doIntegration(self, x1, x2):
-        self.spectra[self.currentSpectrumIndex].integrate(x1, x2)
-        self.updatePlot()
+        self.currentSpectrum.integrate(x1, x2)
     
-    def delete(self):
-        self.plotWidget.hide()
-        return self.plotWidget
+    def getCurrentSpectrumIndex(self):
+        return self.spectra.index(self.currentSpectrum)
     
-    def saveAsImage(self, options={}):
-        fileName, fileTypeFilter = QFileDialog.getSaveFileName(self, "Export Current View", QDir.homePath(), self.tr("Portable Network Graphic (*.png);;Portable Document Format (*.pdf);;Scalable Vector Graphics (*.svg);; Encapsulated PostScript (*.eps);;Tagged Image File Format (*.tif)"))
-        if fileName:
-            m = re.search(r"\*(\.\w{3})", fileTypeFilter, re.IGNORECASE)
-            if not fileName.endswith(m.group(1)):
-                fileName += m.group(1)
-            self.plotWidget.figure.savefig(fileName, dpi=options["dpi"])
+    def setFigureData(self, data):
+        if data['invertX']:
+            for s in self.spectra:
+                s.x = s.x.flip()
+                s.y = s.y.flip()
+                s.peaks = len(s.x) - s.peaks - 1
+        self.figureData['XLabel'] = data["XLabel"]
+        self.figureData['YLabel'] = data["YLabel"]
+        self.figureData['XUnit'] = data["XUnit"]
+        self.figureData['YUnit'] = data["YUnit"]
+        self.figureData['XLim'] = data["XLim"]
+        self.figureData['YLim'] = data["YLim"]
+        self.figureData['PlotTitle'] = data["PlotTitle"]
+        self.figureData['PageTitle'] = data["PageTitle"]
+        self.figureData['Legend'] = data['Legend']

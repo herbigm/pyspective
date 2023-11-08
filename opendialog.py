@@ -198,9 +198,9 @@ class openDialog(QDialog):
     def setOpenOptions(self, cDoc, cPage):
         self.openAsPageRadio.setEnabled(False)
         self.openAsPlotRadio.setEnabled(False)
-        if cDoc != None:
+        if cDoc:
             self.openAsPageRadio.setEnabled(True)
-        if cPage != None:
+        if cPage:
             self.openAsPlotRadio.setEnabled(True)
     
     def getData(self):

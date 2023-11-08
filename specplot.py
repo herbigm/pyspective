@@ -6,8 +6,8 @@ Created on Tue Jul 25 15:12:04 2023
 @author: marcus
 """
 
-from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6 import QtCore
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap, QIcon
 
 import matplotlib
@@ -19,8 +19,6 @@ from matplotlib.backend_bases import MouseButton
 from matplotlib.patches import Rectangle, Polygon
 
 import numpy as np
-import PIL
-
 import json
 
 class specplot(FigureCanvas):
@@ -35,11 +33,7 @@ class specplot(FigureCanvas):
         self.canvas = FigureCanvas(self.figure)
         self.ax = self.canvas.figure.subplots()
         super(specplot, self).__init__(self.figure)
-        self.fullXlim = [0,0]
-        self.fullYlim = [0,0]
-        self.XUnit = ""
-        self.YUnit = ""
-        self.legend = ""
+        self.figureData = None
         self.selectionMode = "ZoomMode"
         
         self.settings = QtCore.QSettings('TUBAF', 'pySpective')
@@ -63,12 +57,8 @@ class specplot(FigureCanvas):
         self.integralXButtonStart = None # where was the first click for the integration range
         self.integralrect = None # holds the rect of the integration region (pale green)
         
-        self.spectraData = []
-        self.spectraLines = []
-        self.currentSpectrumIndex = None
-        
         self.fileName = None
-        self.supTitle = ""
+        self.page = None
     
     ## Event handling
     
@@ -92,7 +82,7 @@ class specplot(FigureCanvas):
         """
         if not event.inaxes:
             return
-        yZoomUnit = np.abs(self.fullYlim[1] - self.fullYlim[0]) / 10
+        yZoomUnit = np.abs(self.figureData['fullYLim'][1] - self.figureData['fullYLim'][0]) / 10
         currentYpos = event.ydata
         currentYmin, currentYmax = self.ax.get_ylim()
         currentRange = currentYmax - currentYmin
@@ -105,7 +95,8 @@ class specplot(FigureCanvas):
             newYmax = currentYpos + ((currentYmax - currentYpos) / currentRange * newRange)
             newYmin = currentYpos - ((currentYpos - currentYmin) / currentRange * newRange)
             self.ax.set_ylim(newYmin, newYmax)
-            self.ax.figure.canvas.draw_idle()
+            self.figureData['YLim'] = [newYmin, newYmax]
+            self.ax.figure.canvas.draw()
             self.plotChanged.emit()
         else:
             # zoom out
@@ -113,15 +104,16 @@ class specplot(FigureCanvas):
                 return
             newRange = currentRange + yZoomUnit
             newYmax = currentYpos + ((currentYmax - currentYpos) / currentRange * newRange)
-            if newYmax > self.fullYlim[1]:
-                currentYpos -= newYmax - self.fullYlim[1]
-                newYmax = self.fullYlim[1]
+            if newYmax > self.figureData['fullYLim'][1]:
+                currentYpos -= newYmax - self.figureData['fullYLim'][1]
+                newYmax = self.figureData['fullYLim'][1]
             newYmin = currentYpos - ((currentYpos - currentYmin) / currentRange * newRange)
-            if newYmin < self.fullYlim[0]:
-                newYmin = self.fullYlim[0]
+            if newYmin < self.figureData['fullYLim'][0]:
+                newYmin = self.figureData['fullYLim'][0]
                 newYmax = newYmin + newRange
             self.ax.set_ylim(newYmin, newYmax)
-            self.ax.figure.canvas.draw_idle()
+            self.figureData['YLim'] = [newYmin, newYmax]
+            self.ax.figure.canvas.draw()
             self.plotChanged.emit()
     
     def on_button_down(self, event):
@@ -135,20 +127,21 @@ class specplot(FigureCanvas):
             return
         if event.button == 1 and event.dblclick: # double click resets the x zoom
             # reset to full spectrum
-            self.ax.set_xlim(self.fullXlim)
+            self.ax.set_xlim(self.figureData['fullXLim'])
+            self.figureData['XLim'] = self.figureData['fullXLim']
             self.zoomXButtonStart = None
             if self.zoomrect:
                 self.zoomrect.remove()
                 self.zoomrect = None
-            self.ax.figure.canvas.draw_idle()
+            self.ax.figure.canvas.draw()
             self.plotChanged.emit()
         elif event.button == 1: # start the x zooming or integration
             if self.selectionMode == "ZoomMode":
                 self.zoomXButtonStart = event.xdata
-                self.zoomrect = self.ax.add_patch(Rectangle((self.zoomXButtonStart, self.fullYlim[0]), 0, (self.fullYlim[1]-self.fullYlim[0]), alpha=0.2, color="red"))
+                self.zoomrect = self.ax.add_patch(Rectangle((self.zoomXButtonStart, self.figureData['fullYLim'][0]), 0, (self.figureData['fullYLim'][1]-self.figureData['fullYLim'][0]), alpha=0.2, color="red"))
             elif self.selectionMode == "IntegrationMode":
                 self.integralXButtonStart = event.xdata
-                self.integralrect = self.ax.add_patch(Rectangle((self.integralXButtonStart, self.fullYlim[0]), 0, (self.fullYlim[1]-self.fullYlim[0]), alpha=0.2, color="green"))
+                self.integralrect = self.ax.add_patch(Rectangle((self.integralXButtonStart, self.figureData['fullYLim'][0]), 0, (self.figureData['fullYLim'][1]-self.figureData['fullYLim'][0]), alpha=0.2, color="green"))
             self.ax.figure.canvas.draw_idle()
         
     def on_button_up(self, event):
@@ -167,134 +160,49 @@ class specplot(FigureCanvas):
             self.zoomXButtonStart = None
             self.zoomrect.remove()
             self.zoomrect = None
-            self.ax.figure.canvas.draw_idle()
+            self.ax.figure.canvas.draw()
             self.plotChanged.emit()
         elif event.button == 1 and self.integralXButtonStart == event.xdata : # start and stop at the same position -> do nothing but reset
             self.integralXButtonStart = None
             self.integralrect.remove()
             self.integralrect = None
-            self.ax.figure.canvas.draw_idle()
+            self.ax.figure.canvas.draw()
             self.plotChanged.emit()
         elif event.button == 1 and self.zoomXButtonStart != None and self.zoomXButtonStart != event.xdata: # stop position other than start position -> do the zoom
             # be carefull with the right range for the x-axis. the use can define the zoom region from up to down and the other way round....
-            if (self.fullXlim[0] > self.fullXlim[1] and self.zoomXButtonStart > event.xdata) or (self.fullXlim[0] < self.fullXlim[1] and self.zoomXButtonStart < event.xdata):
+            if (self.figureData['fullXLim'][0] > self.figureData['fullXLim'][1] and self.zoomXButtonStart > event.xdata) or (self.figureData['fullXLim'][0] < self.figureData['fullXLim'][1] and self.zoomXButtonStart < event.xdata):
                 self.ax.set_xlim(self.zoomXButtonStart, event.xdata)
-            elif (self.fullXlim[0] > self.fullXlim[1] and self.zoomXButtonStart < event.xdata) or (self.fullXlim[0] < self.fullXlim[1] and self.zoomXButtonStart > event.xdata):
+                self.figureData['XLim'] = [self.zoomXButtonStart, event.xdata]
+            elif (self.figureData['fullXLim'][0] > self.figureData['fullXLim'][1] and self.zoomXButtonStart < event.xdata) or (self.figureData['fullXLim'][0] < self.figureData['fullXLim'][1] and self.zoomXButtonStart > event.xdata):
                 self.ax.set_xlim(event.xdata, self.zoomXButtonStart)
+                self.figureData['XLim'] = [event.xdata, self.zoomXButtonStart]
             self.zoomXButtonStart = None
             self.zoomrect.remove()
             self.zoomrect = None
-            self.ax.figure.canvas.draw_idle()
+            self.ax.figure.canvas.draw()
             self.plotChanged.emit()
         elif event.button == 1 and self.integralXButtonStart != None and self.integralXButtonStart != event.xdata: # stop position other than start position -> do the integration
             self.gotIntegrationRange.emit(self.integralXButtonStart, event.xdata)
             self.integralXButtonStart = None
             self.integralrect.remove()
             self.integralrect = None
-            self.ax.figure.canvas.draw_idle()
+            self.ax.figure.canvas.draw()
             self.plotChanged.emit()
-    
-    def addSpectrum(self, spec):
-        self.spectraData.append(spec)
-        if spec.yaxis > 0:
-            if not hasattr(self, 'ax2'):
-                self.ax2 = self.ax.twinx()
-                self.ax2.set_ylabel("derivative")
-            if spec.color != "":
-                self.ax2.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
-            else:
-                self.ax2.plot(spec.x, spec.y, label=spec.title)
-        else:
-            if spec.color != "":
-                self.ax.plot(spec.x, spec.y, spec.markerStyle + spec.lineStyle, color=spec.color, label=spec.title)
-            else:
-                self.ax.plot(spec.x, spec.y, label=spec.title)
-        if len(self.spectraData) == 1:
-            self.ax.set_xlim(self.spectraData[0].xlim)
-            self.ax.set_ylim(self.spectraData[0].ylim)
-            self.ax.set_xlabel(self.spectraData[0].xlabel)
-            self.ax.set_ylabel(self.spectraData[0].ylabel)
-            # save the xlim and ylim of the plot
-            self.fullXlim = self.spectraData[0].xlim.copy()
-            self.fullYlim = self.spectraData[0].ylim.copy()
-            self.XUnit = self.spectraData[0].metadata["Spectral Parameters"]["X Units"]
-            self.YUnit = self.spectraData[0].metadata["Spectral Parameters"]["Y Units"]
-        else:
-            # check if the xlim and ylim are still the maximum of all spectra
-            if spec.xlim[0] < spec.xlim[1]: # from lower to upper on the x axis
-                if spec.xlim[0] < self.fullXlim[0]:
-                    self.fullXlim[0] = spec.xlim[0]
-                if spec.xlim[1] > self.fullXlim[1]:
-                    self.fullXlim[1] = spec.xlim[1]
-            else: # from upper to lower on x axis (e. g. IR and Raman)
-                if spec.xlim[0] > self.fullXlim[0]:
-                    self.fullXlim[0] = spec.xlim[0]
-                if spec.xlim[1] < self.fullXlim[1]:
-                    self.fullXlim[1] = spec.xlim[1]
-            if spec.ylim[0] < self.fullYlim[0]:
-                self.fullYlim[0] = spec.ylim[0]
-            if spec.ylim[1] > self.fullYlim[1]:
-                self.fullYlim[1] = spec.ylim[1]
-        
-        self.ax.figure.canvas.draw()
-        self.plotChanged.emit()
-        if spec.yaxis > 0:
-            return self.ax2.lines[-1].get_color()
-        return self.ax.lines[-1].get_color()
-    
-    def deleteSpectrum(self, row):
-        self.spectraData.pop(row)
-        for i in range(len(self.spectraData)):
-            if i == 0:
-                self.ax.set_xlim(self.spectraData[0].xlim)
-                self.ax.set_ylim(self.spectraData[0].ylim)
-                self.ax.set_xlabel(self.spectraData[0].xlabel)
-                self.ax.set_ylabel(self.spectraData[0].ylabel)
-                # save the xlim and ylim of the plot
-                self.fullXlim = self.spectraData[0].xlim.copy()
-                self.fullYlim = self.spectraData[0].ylim.copy()
-                self.XUnit = self.spectraData[0].metadata["Spectral Parameters"]["X Units"]
-                self.YUnit = self.spectraData[0].metadata["Spectral Parameters"]["Y Units"]
-            else:
-                spec = self.spectraData[i]
-                if spec.xlim[0] < spec.xlim[1]: # from lower to upper on the x axis
-                    if spec.xlim[0] < self.fullXlim[0]:
-                        self.fullXlim[0] = spec.xlim[0]
-                    if spec.xlim[1] > self.fullXlim[1]:
-                        self.fullXlim[1] = spec.xlim[1]
-                else: # from upper to lower on x axis (e. g. IR and Raman)
-                    if spec.xlim[0] > self.fullXlim[0]:
-                        self.fullXlim[0] = spec.xlim[0]
-                    if spec.xlim[1] < self.fullXlim[1]:
-                        self.fullXlim[1] = spec.xlim[1]
-                if spec.ylim[0] < self.fullYlim[0]:
-                    self.fullYlim[0] = spec.ylim[0]
-                if spec.ylim[1] > self.fullYlim[1]:
-                    self.fullYlim[1] = spec.ylim[1] 
-        self.ax.figure.canvas.draw_idle()
-        self.plotChanged.emit()
     
     def getIcon(self):
         self.canvas.draw()
         width, height = self.figure.figbbox.width, self.figure.figbbox.height
-        img = PIL.Image.frombytes('RGB', self.figure.canvas.get_width_height(),self.figure.canvas.tostring_rgb())
-        im = QImage(img.tobytes("raw", "RGB"), int(width), int(height), QImage.Format.Format_RGB888)
+        im = QImage(self.figure.canvas.buffer_rgba(), int(width), int(height), QImage.Format.Format_RGBA8888)
         return QIcon(QPixmap(im))
     
     def updatePlot(self):
-        xlim = self.ax.get_xlim()
-        ylim = self.ax.get_ylim()
-        xlabel = self.ax.get_xlabel()
-        ylabel = self.ax.get_ylabel()
         self.ax.figure.clear()
         if hasattr(self, 'ax2'):
             del self.ax2
         self.ax = self.canvas.figure.subplots()
-        self.ax.set_xlim(xlim)
-        self.ax.set_ylim(ylim)
-        self.ax.set_xlabel(xlabel)
-        self.ax.set_ylabel(ylabel)
-        for spec in self.spectraData:
+        for spec in self.page.spectra:
+            if spec.color == '':
+                spec.color = "#0064a8"
             if spec.yaxis > 0:
                 if not hasattr(self, 'ax2'):
                     self.ax2 = self.ax.twinx()
@@ -317,13 +225,13 @@ class specplot(FigureCanvas):
                     if not ref['Display'] or ref['Display'] == "do not display":
                         spec.ylim[0] = np.min(spec.y)
                         self.ax.set_ylim(spec.ylim[0], currentYlim[1]) # remove space under the graph if no references are present
-                        self.fullYlim[0] = spec.ylim[0]
+                        self.figureData['fullYLim'][0] = spec.ylim[0]
                     elif ref['Display'] == 'display without intenities':
                         if currentYlim[0] >= 0:
                             ymin = -(spec.ylim[1] - spec.ylim[0])/10
                             self.ax.set_ylim(ymin, currentYlim[1])
                             spec.ylim[0] = ymin
-                            self.fullYlim[0] = ymin
+                            self.figureData['fullYLim'][0] = ymin
                         self.ax.vlines(ref['x'], ymin, 0, colors=ref['Color'], label=ref['Title'])
                     elif ref['Display'] == 'display with intensity':
                         # dispaly reference with intensity
@@ -383,10 +291,23 @@ class specplot(FigureCanvas):
                             linesYmax.append(line['rel. Intensity'] * countsAtEnergy / maxIntens)
                     self.ax.vlines(x=linesX, ymin=0, ymax=linesYmax, color=self.ElementLines[ref]['Display Color'], label=ref)
 
-        if self.supTitle != "":
-            self.ax.figure.suptitle(self.supTitle)
-        if self.legend != "":
-            self.ax.legend(loc=self.legend)
-        self.ax.figure.canvas.draw_idle()
+        
+        self.ax.set_xlim(self.figureData['XLim'])
+        self.ax.set_ylim(self.figureData['YLim'])
+        self.ax.set_xlabel(self.figureData['XLabel'])
+        self.ax.set_ylabel(self.figureData['YLabel'])
+        if self.figureData['PlotTitle'] != "":
+            self.ax.figure.suptitle(self.figureData['PlotTitle'])
+        if self.figureData['Legend'] != "":
+            self.ax.legend(loc=self.figureData['Legend'])
+        self.ax.figure.canvas.draw()
         self.plotChanged.emit()
+    
+    def setPage(self, page):
+        self.page = page
+        self.figureData = page.figureData
+        self.updatePlot()
+        
+    def saveAsImage(self, fileName, dpi=300):
+        self.figure.savefig(fileName, dpi=dpi)
             

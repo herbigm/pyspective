@@ -30,7 +30,7 @@ class Spectrum:
         self.xlabel = ""
         self.fileName = ""
         self.title = ""
-        self.color = ""
+        self.color = "#0064a8"
         self.lineStyle = "-"
         self.markerStyle = ""
         self.x = []

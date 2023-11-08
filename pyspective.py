@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 import spectivedocument
 import spectrum
 import spectratypes
+import specplot
 import opendialog
 import metadatadock
 import exportdialog
@@ -59,9 +60,9 @@ class ApplicationWindow(QMainWindow):
         self.createMainWidgets()
         
         self.documents = []
-        self.currentDocumentIndex = -1
-        self.currentPageIndex = -1
-        self.currentSpectrumIndex = -1
+        self.currentDocument = None
+        self.currentPage = None
+        self.currentSpectrum = None
         self.currentMode = "ZoomMode"
         
         # settings
@@ -289,18 +290,18 @@ class ApplicationWindow(QMainWindow):
     def close(self):
         super().close()
         
-    def enableDocumentActions(self):
-        self.pageEditAction.setEnabled(True)
-        self.saveDocumentAction.setEnabled(True)
-        self.saveImageAction.setEnabled(True)
-        self.documentTitleAction.setEnabled(True)
-        self.savePageAction.setEnabled(True)
-        self.saveSpectrumAction.setEnabled(True)
-        self.calculateDerivativeAction.setEnabled(True)
+    def enableDocumentActions(self, enabled):
+        self.pageEditAction.setEnabled(enabled)
+        self.saveDocumentAction.setEnabled(enabled)
+        self.saveImageAction.setEnabled(enabled)
+        self.documentTitleAction.setEnabled(enabled)
+        self.savePageAction.setEnabled(enabled)
+        self.saveSpectrumAction.setEnabled(enabled)
+        self.calculateDerivativeAction.setEnabled(enabled)
         
     def openFile(self):
         dgl = opendialog.openDialog(self)
-        dgl.setOpenOptions(self.currentDocumentIndex, self.currentPageIndex)
+        dgl.setOpenOptions(self.currentDocument, self.currentPage)
         if dgl.exec():
             data = dgl.getData()
             if not os.path.exists(data["File Name"]):
@@ -367,39 +368,31 @@ class ApplicationWindow(QMainWindow):
                 
                 if data['open as'] == "document":
                     document = spectivedocument.spectiveDocument(os.path.basename(data["File Name"]))
+                    document.fileName = data["File Name"]
                     self._mainWidget.currentChanged.disconnect()
-                    self._mainWidget.addTab(document, os.path.basename(data["File Name"]))
+                    plotWidget = specplot.specplot()
+                    plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                    plotWidget.plotChanged.connect(self.showPagesInDock)
+                    self._mainWidget.addTab(plotWidget, os.path.basename(data["File Name"]))
                     self._mainWidget.setCurrentIndex(len(self.documents))
                     self._mainWidget.currentChanged.connect(self.documentChanged)
                     self.documents.append(document)
-                    self.currentDocumentIndex = len(self.documents)-1
+                    self.currentDocument = self.coduments[-1]
                     if type(newSpectrum) == list:
                         for ns in newSpectrum:
-                            document.addPage("plot")
-                            document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
-                            document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
-                            self.currentPageIndex = len(document.pages) - 1
-                            document.pages[-1].addSpectrum(ns)
+                            self.currentPage = document.addPage()
+                            self.currentSpectrum = self.currentPage.addSpectrum(ns)
                         if type(ns).__name__ == "xrfSpectrum":
                             self.xrfDock.setSpectrum(ns)
                     else:
-                        document.addPage("plot")
-                        document.pages[0].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
-                        document.pages[0].plotWidget.plotChanged.connect(self.showPagesInDock)
-                        self.currentPageIndex = 0
-                        document.pages[0].addSpectrum(newSpectrum)
+                        self.currentPage = document.addPage()
+                        self.currentSpectrum = self.currentPage.addSpectrum(newSpectrum)
                     
                 elif data['open as'] == "page":
-                    document = self.documents[self.currentDocumentIndex]
-                    document.addPage("plot")
-                    document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
-                    document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
-                    self.currentPageIndex = len(document.pages) - 1
-                    document.pages[-1].addSpectrum(newSpectrum)
+                    self.currentPage = self.currentDocument.addPage()
+                    self.currentSpectrum = self.currentPage.addSpectrum(newSpectrum)
                 else:
-                    document = self.documents[self.currentDocumentIndex]
-                    document.pages[self.currentPageIndex].addSpectrum(newSpectrum)
-                    self.currentSpectrumIndex += 1 
+                    self.currentSpectrum = self.currentPage.addSpectrum(newSpectrum)
             elif data["File Type"] == "JCAMP-DX":
                 blocks = spectrum.getJCAMPblockFromFile(data["File Name"])
                 linkBlock = {}
@@ -421,65 +414,52 @@ class ApplicationWindow(QMainWindow):
                     document = spectivedocument.spectiveDocument(linkBlock['Title'])
                     document.fileName = data["File Name"]
                     self._mainWidget.currentChanged.disconnect()
-                    self._mainWidget.addTab(document, linkBlock['Title'])
+                    plotWidget = specplot.specplot()
+                    plotWidget.positionChanged.connect(self.showPositionInStatusBar)
+                    plotWidget.plotChanged.connect(self.showPagesInDock)
+                    self._mainWidget.addTab(plotWidget, linkBlock['Title'])
                     self._mainWidget.setCurrentIndex(len(self.documents))
                     self._mainWidget.currentChanged.connect(self.documentChanged)
                     self.documents.append(document)
-                    self.currentDocumentIndex = len(self.documents)-1
+                    self.currentDocument = self.documents[-1]
                     for i in range(numPages):
-                        document.addPage("plot")
-                        document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
-                        document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
-                        self.currentPageIndex = i
+                        self.currentPage = document.addPage()
                     for i in range(len(blocks)):
                         s = self.openSpectrum(blocks[i])
                         if not s:
                             continue
-                        if type(s).__name__ == "powderXRD":
-                            self.xrdDock.setSpectrum(s)
-                        elif type(s).__name__ == "xrfSpectrum":
-                            self.xrfDock.setSpectrum(s)
                         if s.displayData['Page']:
-                            document.pages[s.displayData['Page'] - 1].addSpectrum(s)
+                            self.currentSpectrum = document.pages[s.displayData['Page'] - 1].addSpectrum(s)
                         else:
-                            document.pages[i-1].addSpectrum(s)
-                    self.currentSpectrumIndex = 0
+                            self.currentSpectrum = document.pages[i-1].addSpectrum(s)
                 elif data['open as'] == "page":
-                    document = self.documents[self.currentDocumentIndex]
-                    pageOffset = len(document.pages)
+                    pageOffset = len(self.currentDocument.pages)
                     for i in range(numPages):
-                        document.addPage("plot")
-                        document.pages[-1].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
-                        document.pages[-1].plotWidget.plotChanged.connect(self.showPagesInDock)
+                        self.currentPage = self.currentDocument.addPage()
                     for i in range(len(blocks)):
                         s = self.openSpectrum(blocks[i])
                         if not s:
                             continue
-                        if type(s).__name__ == "powderXRD":
-                            self.xrdDock.setSpectrum(s)
-                        elif type(s).__name__ == "xrfSpectrum":
-                            self.xrfDock.setSpectrum(s)
                         if s.displayData['Page']:
-                            document.pages[pageOffset + s.displayData['Page'] - 1].addSpectrum(s)
+                            self.currentSpectrum = self.currentDocument.pages[pageOffset + s.displayData['Page'] - 1].addSpectrum(s)
                         else:
-                            document.pages[pageOffset + i-1].addSpectrum(s)
-                    self.currentPageIndex = pageOffset
-                    self.currentSpectrumIndex = 0
+                            self.currentSpectrum = self.currentDocument.pages[pageOffset + i-1].addSpectrum(s)
+                    self.currentPage = self.currentDocument.currentPage
+                    self.currentSpectrum = self.currentPage.currentSpectrum
                 else:
-                    document = self.documents[self.currentDocumentIndex]
                     for i in range(len(blocks)):
                         s = self.openSpectrum(blocks[i])
                         if not s:
                             continue
-                        if type(s).__name__ == "powderXRD":
-                            self.xrdDock.setSpectrum(s)
-                        elif type(s).__name__ == "xrfSpectrum":
-                            self.xrfDock.setSpectrum(s)
-                        document.pages[self.currentPageIndex].addSpectrum(s)
-                    self.currentSpectrumIndex += 1 
+                        self.currentSpectrum = self.currentPage.addSpectrum(s)
+            for p in self.currentDocument.pages:
+                self._mainWidget.currentWidget().setPage(p)
+                p.icon = self._mainWidget.currentWidget().getIcon()
+            self.enableDocumentActions(True)
             self.showPagesInDock()
+            self.pageView.setCurrentRow(self.currentDocument.getCurrentPageIndex())
             self.showSpectraInDock()
-            self.enableDocumentActions()
+            self.enableDocks()
                         
     def openSpectrum(self, block):
         """
@@ -523,7 +503,15 @@ class ApplicationWindow(QMainWindow):
         dgl = exportdialog.exportDialog()
         if dgl.exec():
             data = dgl.getData()
-            self.documents[self.currentDocumentIndex].pages[self.currentPageIndex].saveAsImage(data)
+            if self.settings.value("lastImageSavePath"):
+                fileName, filterType = QFileDialog.getSavepenFileName(None, "Save Image", self.settings.value("lastImageSavePath"), self.tr("Portable Network Graphic (*.png)"))
+            else:
+                fileName, filterType = QFileDialog.getSaveFileName(None, "Save Image", QDir.homePath(), self.tr("Portable Network Graphic (*.png)"))
+            if fileName:
+                if not fileName.endswith(".png"):
+                    fileName += ".png"
+                self.settings.setValue("lastImageSavePath", os.path.dirname(fileName))
+                self._mainWidget.currentWidget().saveAsImage(fileName, data['dpi'])
     
     def changeMode(self, a):
         if a == self.zoomAction:
@@ -532,9 +520,8 @@ class ApplicationWindow(QMainWindow):
         elif a == self.integrationAction:
             self.currentMode = "IntegrationMode"
             
-        if self.currentDocumentIndex < len(self.documents) and self.currentDocumentIndex >= 0:
-            document = self.documents[self.currentDocumentIndex]
-            document.setMode(self.currentMode)
+        if self.currentDocument:
+            self.currentDocument.setMode(self.currentMode)
     
     def keyPressEvent(self, evt):
         if evt.key() == Qt.Key.Key_Shift:
@@ -594,87 +581,108 @@ class ApplicationWindow(QMainWindow):
         else: 
             self.xrfDock.hide()
 
+    def enableDocks(self):
+        if type(self.currentSpectrum).__name__ == "powderXRD":
+            self.xrdDock.setSpectrum(self.currentSpectrum)
+            self.xrdDock.setEnabled(True)
+        else: 
+            self.xrdDock.setEnabled(False)
+        if type(self.currentSpectrum).__name__ == "xrfSpectrum":
+            self.xrfDock.setSpectrum(self.currentSpectrum)
+            self.xrfDock.setEnabled(True)
+        else:
+            self.xrfDock.setEnabled(False)
+        
     def saveFile(self):
-        if not self.documents[self.currentDocumentIndex].fileName:
+        if not self.currentDocument.fileName:
             if self.settings.value("LastSaveDir"):
                 fileName, _ = QFileDialog.getSaveFileName(self, "Save File", self.settings.value("LastSaveDir"), "JCAMP-DX File (*.dx)")
             else:
                 fileName, _ = QFileDialog.getSaveFileName(self, "Save File", QDir.homePath(), "JCAMP-DX File (*.dx)")
         else:
-            fileName = self.documents[self.currentDocumentIndex].fileName
+            fileName = self.currentDocument.fileName
         if fileName:
             self.settings.setValue("LastSaveDir", os.path.dirname(fileName))
             if not fileName.endswith(".dx"):
                 fileName += ".dx"
-            self.documents[self.currentDocumentIndex].fileName = fileName
-            self.documents[self.currentDocumentIndex].saveDocument()
+            self.currentDocument.fileName = fileName
+            self.currentDocument.saveDocument()
     
     def showPagesInDock(self):
         self.pageView.currentRowChanged.disconnect()
-        if self.currentDocumentIndex > len(self.documents) or self.currentDocumentIndex < 0:
+        if not self.currentDocument:
             return
         self.pageView.clear()
-        for page in self.documents[self.currentDocumentIndex].pages:
-            newItem = QListWidgetItem(page.plotWidget.getIcon(), page.title)
+        self.currentPage.icon = self._mainWidget.currentWidget().getIcon()
+        for page in self.currentDocument.pages:
+            if page.icon:
+                newItem = QListWidgetItem(page.icon, page.figureData['PageTitle'])
+            else:
+                newItem = QListWidgetItem(page.figureData['PageTitle'])
             self.pageView.addItem(newItem)
-        self.pageView.setCurrentRow(self.currentPageIndex)
+        self.pageView.setCurrentRow(self.currentDocument.getCurrentPageIndex())
         self.pageView.currentRowChanged.connect(self.pageChanged)
-        if self.currentSpectrumIndex >= 0 and self.currentSpectrumIndex < len(page.spectra):
-            self.integralDock.setSpectrum(page.spectra[self.currentSpectrumIndex])
+        if self.currentSpectrum:
+            self.integralDock.setSpectrum(self.currentSpectrum)
     
     def showSpectraInDock(self):
-        if self.currentDocumentIndex >= len(self.documents) or self.currentDocumentIndex < 0:
+        if not self.currentDocument:
             return
-        document = self.documents[self.currentDocumentIndex]
-        if self.currentPageIndex >= len(document.pages) or self.currentPageIndex < 0:
+        if not self.currentPage:
             return
         self.spectraList.currentRowChanged.disconnect()
-        page = document.pages[self.currentPageIndex]
         self.spectraList.clear()
-        for s in page.spectra:
+        for s in self.currentPage.spectra:
             pix = QPixmap(QSize(32,32))
             pix.fill(QColor.fromString(s.color))
             icon = QIcon(pix)
             item = QListWidgetItem(icon, s.title)
             self.spectraList.addItem(item)
         self.spectraList.currentRowChanged.connect(self.currentSpectrumChanged)
-        if self.currentSpectrumIndex >= 0 and self.currentSpectrumIndex < len(page.spectra):
-            self.spectraList.setCurrentRow(self.currentSpectrumIndex)
-        else:
-            self.spectraList.setCurrentRow(len(page.spectra)-1)
-            self.currentSpectrumIndex = len(page.spectra)-1
+        if self.currentPage and self.currentSpectrum:
+            self.spectraList.setCurrentRow(self.currentPage.getCurrentSpectrumIndex())
     
     def documentChanged(self, index):
-        self.currentDocumentIndex = index
+        if index < 0:
+            self.currentDocument = None
+            return 
+        self.currentDocument = self.documents[index]
+        self.currentPage = self.currentDocument.currentPage
+        self.currentSpectrum = self.currentPage.currentSpectrum
         self.showPagesInDock()
+        self.pageView.setCurrentRow(self.currentDocument.getCurrentPageIndex())
         self.showSpectraInDock()
+        self.spectraList.setCurrentRow(self.currentPage.getCurrentSpectrumIndex())
+        self.enableDocks()
     
     def pageChanged(self, index):
-        self.currentPageIndex = index
+        self.currentPage = self.currentDocument.goToPage(index)
+        self.currentSpectrum = self.currentPage.currentSpectrum
+        self._mainWidget.currentWidget().setPage(self.currentPage)
+        self.currentPage.icon = self._mainWidget.currentWidget().getIcon()
+        self.showPagesInDock()        
         self.showSpectraInDock()
-        self.documents[self.currentDocumentIndex].goToPage(index)
-        spectrum = self.documents[self.currentDocumentIndex].pages[index].spectra[0]
-        if type(spectrum).__name__ == "xrfSpectrum":
-            self.xrfDock.setSpectrum(spectrum)
+        self.spectraList.setCurrentRow(self.currentPage.getCurrentSpectrumIndex())
+        self.enableDocks()
         
     def closeDocument(self, index):
-        if index == self.currentDocumentIndex:
+        if index == self.documents.index(self.currentDocument):
             self.pageView.clear()
+            self.spectraView.clear()
+            self.xrdDock.setEnabled(False)
+            self.xrfDock.setEnabled(False)
         del self.documents[index]
         self._mainWidget.removeTab(index)
         if self._mainWidget.currentIndex() < 0:
             # no documents open
-            self.figureAction.setEnabled(False)
-            self.saveAction.setEnabled(False)
-            self.imageSaveAction.setEnabled(False)
+            self.enableDocumentActions(False)
     
     def setDocumentTitle(self):
-        document = self.documents[self.currentDocumentIndex]
-        if not document:
+        if not self.currentDocument:
             return
-        title, ok = QInputDialog.getText(self, self.tr("Set Document Title"), self.tr("New Document Title"), QLineEdit.EchoMode.Normal, document.title)
+        title, ok = QInputDialog.getText(self, self.tr("Set Document Title"), self.tr("New Document Title"), QLineEdit.EchoMode.Normal, self.currentDocument.title)
         if ok and  title != "":
-            document.title = title
+            self.currentDocument.title = title
             self._mainWidget.setTabText(self._mainWidget.currentIndex(), title)
     
     def saveSpectrum(self):
@@ -687,7 +695,7 @@ class ApplicationWindow(QMainWindow):
             self.settings.setValue("LastSaveDir", os.path.dirname(fileName))
             if not fileName.endswith(".dx"):
                 fileName += ".dx"
-            self.documents[self.currentDocumentIndex].saveSpectrum(self.currentSpectrumIndex, fileName)
+            self.currentDocument.saveSpectrum(self.currentSpectrumIndex, fileName)
             
     def savePage(self):
         if self.settings.value("LastSaveDir"):
@@ -699,42 +707,40 @@ class ApplicationWindow(QMainWindow):
             self.settings.setValue("LastSaveDir", os.path.dirname(fileName))
             if not fileName.endswith(".dx"):
                 fileName += ".dx"
-            self.documents[self.currentDocumentIndex].savePage(fileName)
+            self.currentDocument.savePage(fileName)
     
     def pageEdit(self, row = -1):
-        dgl = pagedialog.pageDialog()
         if row == -1 or not row:
-            row = self.currentPageIndex
+            return
+        dgl = pagedialog.pageDialog()
         if type(row) != int:
             row = self.pageView.row(row)
-        if row != self.currentPageIndex:
+        if row != self.pageView.currentRow():
             self.pageView.setCurrentRow(row)
-        dgl.setData(self.documents[self.currentDocumentIndex].getFigureData())
+        dgl.setData(self.currentPage.figureData)
         if dgl.exec():
             data = dgl.getData()
-            self.documents[self.currentDocumentIndex].setFigureData(data)
-            self.currentSpectrumChanged(self.currentSpectrumIndex)
+            self.currentPage.setFigureData(data)
+            self.updatePlot()
+            self.showPagesInDock()
     
     def pageUp(self, row):
-        document = self.documents[self.currentDocumentIndex]
         if row < 1:
             return
-        document.pages[row], document.pages[row - 1] = document.pages[row - 1], document.pages[row]
-        self.currentPageIndex -= 1
+        self.currentDocument.pages[row], self.currentDocument.pages[row - 1] = self.currentDocument.pages[row - 1], self.currentDocument.pages[row]
+        self.currentPage = self.currentDocument.pages[self.currentDocument.pages.index(self.currentPage) - 1]
         self.showPagesInDock()
     
     def pageDown(self, row):
-        document = self.documents[self.currentDocumentIndex]
-        maxRow = len(document.pages) - 1
+        maxRow = len(self.currentDocument.pages) - 1
         if row > maxRow - 1:
             return
-        document.pages[row], document.pages[row + 1] = document.pages[row + 1], document.pages[row]
-        self.currentPageIndex += 1
+        self.currentDocument.pages[row], self.currentDocument.pages[row + 1] = self.currentDocument.pages[row + 1], self.currentDocument.pages[row]
+        self.currentPage = self.currentDocument.pages[self.currentDocument.pages.index(self.currentPage) + 1]
         self.showPagesInDock()
     
     def pageDelete(self, row):
-        document = self.documents[self.currentDocumentIndex]
-        delP = document.deletePage(row)
+        delP = self.currentDocument.deletePage(row)
         print(delP)
         if delP:
             self.pageChanged(delP)
@@ -744,85 +750,62 @@ class ApplicationWindow(QMainWindow):
     def spectrumEdit(self, row):
         if type(row) != int:
             row = self.spectraList.row(row)
-        self.currentSpectrumIndex = row
-        document = self.documents[self.currentDocumentIndex]
-        page = document.pages[self.currentPageIndex]
-        spectrum = page.spectra[row]
+        self.currentSpectrum = self.currentPage.setCurrentSpectrum(row)
         dgl = spectrumdialog.spectrumDialog()
-        dgl.setData(spectrum.getDisplayData())
+        dgl.setData(self.currentSpectrum.getDisplayData())
         if dgl.exec():
-            spectrum.setDisplayData(dgl.getData())
-            page.updatePlot()
+            self.currentSpectrum.setDisplayData(dgl.getData())
+            self._mainWidget.currentWidget().updatePlot()
             self.showSpectraInDock()
     
     def spectrumUp(self, row):
-        document = self.documents[self.currentDocumentIndex]
-        page = document.pages[self.currentPageIndex]
         if row < 1:
             return
-        page.spectrumUp(row)
-        self.currentSpectrumIndex -= 1
+        self.currentSpectrum = self.currentPage.spectrumUp(row)
         self.showSpectraInDock()
         
     def spectrumDown(self, row):
-        document = self.documents[self.currentDocumentIndex]
-        page = document.pages[self.currentPageIndex]
-        maxRow = len(page.spectra) - 1
+        maxRow = len(self.currentPage.spectra) - 1
         if row > maxRow - 1:
             return
-        page.spectrumDown(row)
-        self.currentSpectrumIndex += 1
+        self.currentSpectrum = self.currentPage.spectrumDown(row)
         self.showSpectraInDock()
     
     def spectrumDelete(self, row):
-        document = self.documents[self.currentDocumentIndex]
-        page = document.pages[self.currentPageIndex]
-        self.currentSpectrumIndex = page.deleteSpectrum(row)
+        self.currentSpectrum = self.currentPage.deleteSpectrum(row)
         self.showSpectraInDock()
             
     def currentSpectrumChanged(self, index):
-        self.currentSpectrumIndex = index
-        document = self.documents[self.currentDocumentIndex]
-        page = document.pages[self.currentPageIndex]
-        page.setCurrentSpectrum(index)
-        spectrum = page.spectra[index]
+        self.currentSpectrum = self.currentPage.setCurrentSpectrum(index)
         self.metadataDock.dataChanged.disconnect()
-        self.metadataDock.setData(spectrum.metadata)
+        self.metadataDock.setData(self.currentSpectrum.metadata)
         self.metadataDock.dataChanged.connect(self.updateMetadata)
-        self.peakpickingDock.setSpectrum(spectrum)
-        self.integralDock.setSpectrum(page.spectra[self.currentSpectrumIndex])
+        self.peakpickingDock.setSpectrum(self.currentSpectrum)
+        self.integralDock.setSpectrum(self.currentSpectrum)
+        self.enableDocks()
     
     def updateMetadata(self, data):
-        document = self.documents[self.currentDocumentIndex]
-        page = document.pages[self.currentPageIndex]
-        spectrum = page.spectra[self.currentSpectrumIndex]
-        spectrum.metadata = data
-        spectrum.title = data["Core Data"]["Title"]
+        self.currentSpectrum.metadata = data
+        self.currentSpectrum.title = data["Core Data"]["Title"]
         self.showSpectraInDock()
     
     def updatePlot(self):
-        document = self.documents[self.currentDocumentIndex]
-        page = document.pages[self.currentPageIndex]
-        page.updatePlot()
+        self._mainWidget.currentWidget().updatePlot()
         
     def calculateDerivative(self):
-        document = self.documents[self.currentDocumentIndex]
-        page = document.pages[self.currentPageIndex]
-        spectrum = page.spectra[self.currentSpectrumIndex]
-        spec = spectrum.calculateDerivative()
-        page.addSpectrum(spec)
+        spec = self.currentSpectrum.calculateDerivative()
+        self.currentSpectrum = self.currentPage.addSpectrum(spec)
+        self.updatePlot()
         self.showSpectraInDock()
         
     def substractSpectra(self):
-        document = self.documents[self.currentDocumentIndex]
-        page = self.documents[self.currentDocumentIndex].pages[self.currentPageIndex]
-        dgl = processdocks.substractionDialog(document, self.currentPageIndex)
+        dgl = processdocks.substractionDialog(self.currentDocument)
         if dgl.exec():
             data = dgl.getData()
             data['Target Page'] -= 1
             minuend = None
             subtrahend = None
-            for s in page.spectra:
+            for s in self.currentPage.spectra:
                 if s.title == data['Minuend']:
                     minuend = s
                 if s.title == data['Subtrahend']:
@@ -892,13 +875,11 @@ class ApplicationWindow(QMainWindow):
             newSpectrum.metadata["Sampling Information"]["Data Processing"] += "\r\ņSubstraction of " + newSpectrum.title
             newSpectrum.metadata["Sampling Information"]["Data Processing"] = newSpectrum.metadata["Sampling Information"]["Data Processing"].strip()
             if data['Target Page'] == -1:
-                document.addPage("plot")
-                self.currentPageIndex = len(document.pages) - 1
-                document.pages[data['Target Page']].plotWidget.positionChanged.connect(self.showPositionInStatusBar)
-                document.pages[data['Target Page']].plotWidget.plotChanged.connect(self.showPagesInDock)
+                self.currentPage = self.currentDocument.addPage()
+
             newSpectrum.xlim = [np.min(newSpectrum.x), np.max(newSpectrum.x)]
             newSpectrum.ylim = [np.min(newSpectrum.y), np.max(newSpectrum.y)]
-            document.pages[data['Target Page']].addSpectrum(newSpectrum)
+            self.currentSpectrum = self.currentPage.addSpectrum(newSpectrum)
             self.showSpectraInDock()
             self.showPagesInDock()
             
