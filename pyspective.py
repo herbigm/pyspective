@@ -377,7 +377,7 @@ class ApplicationWindow(QMainWindow):
                     self._mainWidget.setCurrentIndex(len(self.documents))
                     self._mainWidget.currentChanged.connect(self.documentChanged)
                     self.documents.append(document)
-                    self.currentDocument = self.coduments[-1]
+                    self.currentDocument = self.documents[-1]
                     if type(newSpectrum) == list:
                         for ns in newSpectrum:
                             self.currentPage = document.addPage()
