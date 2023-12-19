@@ -10,6 +10,7 @@ import spectrum
 import json
 import os
 import datetime
+import struct
 
 import numpy as np
 from scipy import stats
@@ -292,3 +293,46 @@ class powderXRD(spectrum.Spectrum):
         if len(self.references) > 0:
             insert += "\r\n##$XRD REFERENCES=" + json.dumps(self.references)
         return super().getAsJCAMPDX(insert)
+    
+    def openBrukerRaw4(self, fileName):
+        fp = open(fileName, "rb")
+        fileSize = os.path.getsize(fileName)
+
+        fp.seek(0)
+
+        bruker_version = str(fp.read(7).decode("iso-8859-1"))
+
+        fp.seek(12)
+        bruker_date = str(fp.read(10).decode("iso-8859-1"))
+
+        fp.seek(24)
+        bruker_time = str(fp.read(8).decode("iso-8859-1"))
+
+        bruker_datetime = datetime.datetime.strptime(bruker_date + "H" + bruker_time, "%m/%d/%YH%H:%M:%S")
+
+        fp.seek(471)
+        n_points = struct.unpack('i', fp.read(4))[0]
+
+        fp.seek(539)
+        start, step = struct.unpack('dd', fp.read(16))
+
+        x = np.linspace(start, start+n_points*step, num=n_points)
+
+        fp.seek(fileSize - n_points*4)
+        y = []
+        while True:
+            b = fp.read(4)
+            if not b:
+                break
+            d = struct.unpack('f', b)[0]
+            y.append(d /  171.0) # i do not know where the 171 comes from....
+        
+        self.x = np.array(x)
+        self.y = np.array(y)
+        self.metadata["Notes"]["Date Time"] = bruker_datetime
+        self.metadata["Comments"] += "Bruker Version: " + bruker_version
+        self.metadata["Core Data"]["Title"] = os.path.basename(fileName)
+        self.title = os.path.basename(fileName)
+        self.xlim = [min(self.x), max(self.x)]
+        self.ylim = [min(self.y), max(self.y)]
+        return True

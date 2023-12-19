@@ -50,7 +50,7 @@ class openDialog(QDialog):
         self.layout.addWidget(self.openFileButton, 0, 3)
         self.layout.addWidget(QLabel(self.tr("File Type: ")), 1, 0)
         self.fileTypeCombo = QComboBox(self)
-        self.fileTypeCombo.addItems(["JCAMP-DX", "Any Text Format", "MCA - DESY XRF File Format", "pyXrfa-JSON", "AMETEK-XRF TXT-Export"])
+        self.fileTypeCombo.addItems(["JCAMP-DX", "Any Text Format", "MCA - DESY XRF File Format", "pyXrfa-JSON", "AMETEK-XRF TXT-Export", "Bruker XRD RAW4"])
         self.fileTypeCombo.currentTextChanged.connect(self.changeFileType)
         self.layout.addWidget(self.fileTypeCombo, 1,1)
         
@@ -130,9 +130,9 @@ class openDialog(QDialog):
     
     def getFileName(self):
         if self.settings.value("lastOpenDir"):
-            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", self.settings.value("lastOpenDir"), self.tr("JCAMP-DX File (*.dx *jdx);; Any Type (*);;MCA - DESY XRF File Format (*.mca);;pyXrfa-JSON (*.json);; AMETEK-XRF Export (*.txt)"))
+            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", self.settings.value("lastOpenDir"), self.tr("JCAMP-DX File (*.dx *jdx);; Any Type (*);;MCA - DESY XRF File Format (*.mca);;pyXrfa-JSON (*.json);; AMETEK-XRF Export (*.txt);;Bruker XRD RAW4(*.raw)"))
         else:
-            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", QDir.homePath(), self.tr("JCAMP-DX File (*.dx *jdx);; Any Type (*);;MCA - DESY XRF File Format (*.mca);;pyXrfa-JSON (*.json);; AMETEK-XRF Export (*.txt)"))
+            fileName, filterType = QFileDialog.getOpenFileName(None, "Open spectrum", QDir.homePath(), self.tr("JCAMP-DX File (*.dx *jdx);; Any Type (*);;MCA - DESY XRF File Format (*.mca);;pyXrfa-JSON (*.json);; AMETEK-XRF Export (*.txt);;Bruker XRD RAW4(*.raw)"))
         if fileName:
             self.fileNameLabel.setText(fileName)
             if filterType == "Any Type (*)":
@@ -149,6 +149,9 @@ class openDialog(QDialog):
                 self.freeTextFileSettings.setVisible(False)
             elif filterType == "AMETEK-XRF Export (*.txt)":
                 self.fileTypeCombo.setCurrentText("AMETEK-XRF TXT-Export")
+                self.freeTextFileSettings.setVisible(False)
+            elif filterType == "Bruker XRD RAW4(*.raw)":
+                self.fileTypeCombo.setCurrentText("Bruker XRD RAW4")
                 self.freeTextFileSettings.setVisible(False)
     
     def changeFileType(self, s):

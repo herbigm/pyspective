@@ -303,6 +303,9 @@ class specplot(FigureCanvas):
         self.ax.figure.canvas.draw()
         self.plotChanged.emit()
     
+    def setMode(self, mode):
+        self.selectionMode = mode
+    
     def setPage(self, page):
         self.page = page
         self.figureData = page.figureData

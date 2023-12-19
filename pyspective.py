@@ -307,7 +307,7 @@ class ApplicationWindow(QMainWindow):
             if not os.path.exists(data["File Name"]):
                 return
             self.settings.setValue("lastOpenDir", os.path.dirname(data["File Name"]))
-            if data["File Type"] == "Any Text Format" or data["File Type"] == "MCA - DESY XRF File Format" or data["File Type"] == "pyXrfa-JSON" or data["File Type"] == "AMETEK-XRF TXT-Export":
+            if data["File Type"] == "Any Text Format" or data["File Type"] == "MCA - DESY XRF File Format" or data["File Type"] == "pyXrfa-JSON" or data["File Type"] == "AMETEK-XRF TXT-Export" or data['File Type'] == "Bruker XRD RAW4":
                 print(data['File Name'])
                 if data["File Type"] == "Any Text Format":
                     if data["Free Text Settings"]["Spectrum Type"] == self.tr("Raman"):
@@ -365,6 +365,12 @@ class ApplicationWindow(QMainWindow):
                             ns.title = "Spectrum with filter " + str(i+1)
                             ns.metadata["Core Data"]["Title"] = "Spectrum with filter " + str(i+1)
                             newSpectrum.append(ns)
+                elif data["File Type"] == "Bruker XRD RAW4":
+                    newSpectrum = spectratypes.powderXRD()
+                    print("Bruker XRD RAW4")
+                    print(newSpectrum.openBrukerRaw4(data['File Name']))
+                    self.xrdDock.setSpectrum(newSpectrum)
+                    
                 
                 if data['open as'] == "document":
                     document = spectivedocument.spectiveDocument(os.path.basename(data["File Name"]))
@@ -504,7 +510,7 @@ class ApplicationWindow(QMainWindow):
         if dgl.exec():
             data = dgl.getData()
             if self.settings.value("lastImageSavePath"):
-                fileName, filterType = QFileDialog.getSavepenFileName(None, "Save Image", self.settings.value("lastImageSavePath"), self.tr("Portable Network Graphic (*.png)"))
+                fileName, filterType = QFileDialog.getSaveFileName(None, "Save Image", self.settings.value("lastImageSavePath"), self.tr("Portable Network Graphic (*.png)"))
             else:
                 fileName, filterType = QFileDialog.getSaveFileName(None, "Save Image", QDir.homePath(), self.tr("Portable Network Graphic (*.png)"))
             if fileName:
@@ -521,7 +527,7 @@ class ApplicationWindow(QMainWindow):
             self.currentMode = "IntegrationMode"
             
         if self.currentDocument:
-            self.currentDocument.setMode(self.currentMode)
+            self._mainWidget.currentWidget().setMode(self.currentMode)
     
     def keyPressEvent(self, evt):
         if evt.key() == Qt.Key.Key_Shift:
@@ -668,7 +674,7 @@ class ApplicationWindow(QMainWindow):
     def closeDocument(self, index):
         if index == self.documents.index(self.currentDocument):
             self.pageView.clear()
-            self.spectraView.clear()
+            self.spectraList.clear()
             self.xrdDock.setEnabled(False)
             self.xrfDock.setEnabled(False)
         del self.documents[index]
@@ -711,7 +717,9 @@ class ApplicationWindow(QMainWindow):
     
     def pageEdit(self, row = -1):
         if row == -1 or not row:
-            return
+            if not self.currentDocument:
+                return
+            row = self.pageView.currentRow()
         dgl = pagedialog.pageDialog()
         if type(row) != int:
             row = self.pageView.row(row)

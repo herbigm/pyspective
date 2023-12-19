@@ -7,6 +7,7 @@ Created on Thu Aug  3 13:42:51 2023
 """
 
 import json
+import numpy as np
 
 from spectrum import checkLength
 
@@ -147,18 +148,18 @@ class spectivePage:
                 # update xlim if necessary
                 if self.figureData['fullXLim'][0] > self.figureData['fullXLim'][1]:
                     if spectrum.xlim[0] < spectrum.xlim[1]: # Spectrum has not the same x-axis orientation as the plot! -> flip it!
-                        spectrum.x = spectrum.x.flip()
-                        spectrum.y = spectrum.y.flip()
-                        spectrum.xlim = spectrum.xlim.flip()
+                        spectrum.x = np.flip(spectrum.x)
+                        spectrum.y = np.flip(spectrum.y)
+                        spectrum.xlim = np.flip(spectrum.xlim)
                     if self.figureData['fullXLim'][0] < spectrum.xlim[0]:
                         self.figureData['fullXLim'][0] = spectrum.xlim[0]
                     if self.figureData['fullXLim'][1] > spectrum.xlim[1]:
                         self.figureData['fullXLim'][1] = spectrum.xlim[1]
                 else:
                     if spectrum.xlim[0] > spectrum.xlim[1]: # Spectrum has not the same x-axis orientation as the plot! -> flip it!
-                        spectrum.x = spectrum.x.flip()
-                        spectrum.y = spectrum.y.flip()
-                        spectrum.xlim = spectrum.xlim.flip()
+                        spectrum.x = np.flip(spectrum.x)
+                        spectrum.y = np.flip(spectrum.y)
+                        spectrum.xlim = np.flip(spectrum.xlim)
                     if self.figureData['fullXLim'][0] > spectrum.xlim[0]:
                         self.figureData['fullXLim'][0] = spectrum.xlim[0]
                     if self.figureData['fullXLim'][1] < spectrum.xlim[1]:
@@ -166,18 +167,18 @@ class spectivePage:
                 # update ylim if necessary
                 if self.figureData['fullYLim'][0] > self.figureData['fullYLim'][1]:
                     if spectrum.ylim[0] < spectrum.ylim[1]: # Spectrum has not the same x-axis orientation as the plot! -> flip it!
-                        spectrum.x = spectrum.x.flip()
-                        spectrum.y = spectrum.y.flip()
-                        spectrum.xlim = spectrum.xlim.flip()
+                        spectrum.x = np.flip(spectrum.x)
+                        spectrum.y = np.flip(spectrum.y)
+                        spectrum.xlim = np.flip(spectrum.xlim)
                     if self.figureData['fullYLim'][0] < spectrum.ylim[0]:
                         self.figureData['fullYLim'][0] = spectrum.ylim[0]
                     if self.figureData['fullYLim'][1] > spectrum.ylim[1]:
                         self.figureData['fullYLim'][1] = spectrum.ylim[1]
                 else:
                     if spectrum.ylim[0] > spectrum.ylim[1]: # Spectrum has not the same x-axis orientation as the plot! -> flip it!
-                        spectrum.x = spectrum.x.flip()
-                        spectrum.y = spectrum.y.flip()
-                        spectrum.xlim = spectrum.xlim.flip()
+                        spectrum.x = np.flip(spectrum.x)
+                        spectrum.y = np.flip(spectrum.y)
+                        spectrum.xlim = np.flip(spectrum.xlim)
                     if self.figureData['fullYLim'][0] > spectrum.ylim[0]:
                         self.figureData['fullYLim'][0] = spectrum.ylim[0]
                     if self.figureData['fullYLim'][1] < spectrum.ylim[1]:
@@ -247,9 +248,10 @@ class spectivePage:
     def setFigureData(self, data):
         if data['invertX']:
             for s in self.spectra:
-                s.x = s.x.flip()
-                s.y = s.y.flip()
-                s.peaks = len(s.x) - s.peaks - 1
+                s.x = np.flip(s.x)
+                s.y = np.flip(s.y)
+                for i in range(len(s.peaks)):
+                    s.peaks[i] = len(s.x) - s.peaks[i] - 1
         self.figureData['XLabel'] = data["XLabel"]
         self.figureData['YLabel'] = data["YLabel"]
         self.figureData['XUnit'] = data["XUnit"]
