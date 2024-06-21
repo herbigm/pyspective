@@ -572,7 +572,8 @@ class XrfDock(QDockWidget):
     
     def buttonClicked(self):
         btn = self.sender()
-        element = btn.text()
+        element = btn.text().replace("&", "")
+        print(element)
         if element in self.spectrum.references:
             self.spectrum.references.remove(element)
             btn.setStyleSheet("")
